@@ -65,14 +65,24 @@ bool is_op(char c)
 
 void evaluate(struct Number *nums, struct Op *op)
 {
-    int result = 0;
+    bool is_ok = true;
+    int result = result = nums->items[0];
     for (size_t i = 0; i < nums->size; i++) {
-        if (op->items[i] == '+') result = nums->items[i] + nums->items[i+1];
-        else if (op->items[i] == '-') result = nums->items[i] - nums->items[i+1];
-        else if (op->items[i] == '*') result = nums->items[i] * nums->items[i+1];
-        else if (op->items[i] == '/') result = nums->items[i] * nums->items[i+1];
+        if (op->items[i] == '+') result += nums->items[i+1];
+        else if (op->items[i] == '-') result -= nums->items[i+1];
+        else if (op->items[i] == '*') result *= nums->items[i+1];
+        else if (op->items[i] == '/') {
+            if (nums->items[i+1] == 0) {
+                fprintf(stderr, "ERROR: second number can not be zero\n");
+                is_ok = false;
+            } else {
+                result = nums->items[i] / nums->items[i+1];
+            }
+        }
     }
-    printf("%d\n", result);
+
+    if (is_ok)  printf("%d\n", result);
+
     nums->count = 0;
     op->count = 0;
 }
@@ -87,7 +97,7 @@ int main(void)
             perror("[ERROR]: Readline input error");
         }
         if (strcmp(input, "exit") == 0) exit(0);
-        for (int i = 0; i < strlen(input); ++i) {
+        for (size_t i = 0; i < strlen(input); ++i) {
             char c = input[i];
             if (c == '\n') break;
             if (c == ' ' || c == '\t' || c == '\r') continue;
