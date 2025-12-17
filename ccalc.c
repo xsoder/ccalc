@@ -1,9 +1,37 @@
-//   Build: cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc
+//   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling, and Tuples
+//   Build: cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm
+
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdarg.h>
+#include <dlfcn.h>
+#include <math.h>
+
+#define COLOR_RESET   "\033[0m"
+#define COLOR_RED     "\033[31m"
+#define COLOR_GREEN   "\033[32m"
+#define COLOR_YELLOW  "\033[33m"
+#define COLOR_BLUE    "\033[34m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_CYAN    "\033[36m"
+#define COLOR_WHITE   "\033[37m"
+#define COLOR_GRAY    "\033[90m"
+
+bool use_colors = false;
+bool errors_occurred = false;
+bool import_mode = false;
+
+typedef struct {
+    const char *filename;
+    int line;
+    int column;
+} SourceLoc;
+
+SourceLoc current_loc = { "<stdin>", 1, 1 };
 
 typedef struct ArenaBlock {
     struct ArenaBlock *next;
@@ -60,12 +88,57 @@ Arena *global_arena;
 #define xmalloc(sz) arena_alloc(global_arena, sz)
 #define xstrdup(s) arena_strdup(global_arena, s)
 
+void error_at(SourceLoc loc, const char *fmt, ...) {
+    fprintf(stderr, "%s:%d:%d: error: ", loc.filename, loc.line, loc.column);
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+    errors_occurred = true;
+}
+
+void warning_at(SourceLoc loc, const char *fmt, ...) {
+    fprintf(stderr, "%s:%d:%d: warning: ", loc.filename, loc.line, loc.column);
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+}
+
+typedef enum {
+    FFI_INT, FFI_DOUBLE, FFI_STRING, FFI_VOID, FFI_PTR, FFI_LONG, FFI_FLOAT, FFI_CHAR, FFI_BOOL
+} FFIType;
+
+typedef struct {
+    char *name;
+    void *handle;
+} LoadedLib;
+
+typedef struct {
+    char *name;
+    char *c_name;
+    void *func_ptr;
+    FFIType *param_types;
+    size_t param_count;
+    FFIType return_type;
+} ExternFunc;
+
+LoadedLib *loaded_libs = NULL;
+size_t loaded_libs_count = 0;
+size_t loaded_libs_capacity = 0;
+
+ExternFunc *extern_funcs = NULL;
+size_t extern_funcs_count = 0;
+size_t extern_funcs_capacity = 0;
+
 typedef struct Env Env;
 typedef struct AST AST;
 typedef struct Value Value;
 
 typedef enum {
-    VAL_INT, VAL_DOUBLE, VAL_STRING, VAL_FUNC, VAL_LIST, VAL_NULL, VAL_BOOL
+    VAL_INT, VAL_DOUBLE, VAL_STRING, VAL_FUNC, VAL_LIST, VAL_NULL, VAL_BOOL, VAL_ERROR, VAL_TUPLE, VAL_PTR
 } ValueType;
 
 typedef enum {
@@ -81,6 +154,7 @@ typedef struct Function {
     AST *body;
     bool is_builtin;
     Value (*builtin)(Value *, size_t);
+    Env *closure_env;
 } Function;
 
 typedef struct {
@@ -88,6 +162,11 @@ typedef struct {
     size_t size;
     size_t capacity;
 } List;
+
+typedef struct {
+    Value *items;
+    size_t size;
+} Tuple;
 
 struct Value {
     ValueType type;
@@ -99,6 +178,8 @@ struct Value {
         Function *fn;
         List *list;
         bool b;
+        Tuple *tuple;
+        void *ptr;
     };
 };
 
@@ -108,6 +189,8 @@ Value v_str(const char*s) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_STRING
 Value v_null(void) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_NULL; return v; }
 Value v_bool(bool b) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_BOOL; v.b=b; return v; }
 Value v_func(Function*f) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_FUNC; v.fn=f; return v; }
+Value v_error(const char*msg) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_ERROR; v.s=xstrdup(msg); return v; }
+Value v_ptr(void *p) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_PTR; v.ptr=p; return v; }
 
 Value v_return(Value v) { v.cf = CF_RETURN; return v;}
 Value v_break(void) { Value v = v_null(); v.cf = CF_BREAK; return v;}
@@ -121,6 +204,17 @@ Value v_list(void) {
     v.list->capacity = 8;
     v.list->size = 0;
     v.list->items = xmalloc(sizeof(Value) * v.list->capacity);
+    return v;
+}
+
+Value v_tuple(Value *items, size_t size) {
+    Value v;
+    memset(&v, 0, sizeof(v));
+    v.type = VAL_TUPLE;
+    v.tuple = xmalloc(sizeof(Tuple));
+    v.tuple->size = size;
+    v.tuple->items = xmalloc(sizeof(Value) * size);
+    memcpy(v.tuple->items, items, sizeof(Value) * size);
     return v;
 }
 
@@ -138,12 +232,15 @@ void list_append(List *l, Value v) {
 bool value_is_truthy(Value v) {
     switch (v.type) {
         case VAL_NULL: return false;
+        case VAL_ERROR: return false;
         case VAL_BOOL: return v.b;
         case VAL_INT: return v.i != 0;
         case VAL_DOUBLE: return v.d != 0.0;
         case VAL_STRING: return v.s && v.s[0] != 0;
         case VAL_LIST: return v.list->size > 0;
+        case VAL_TUPLE: return v.tuple->size > 0;
         case VAL_FUNC: return true;
+        case VAL_PTR: return v.ptr != NULL;
     }
     return false;
 }
@@ -152,6 +249,39 @@ double value_to_double(Value v) {
     if (v.type == VAL_INT) return (double)v.i;
     if (v.type == VAL_DOUBLE) return v.d;
     return 0.0;
+}
+
+const char* value_type_name(Value v) {
+    switch (v.type) {
+        case VAL_INT: return "int";
+        case VAL_DOUBLE: return "double";
+        case VAL_STRING: return "string";
+        case VAL_FUNC: return "function";
+        case VAL_LIST: return "list";
+        case VAL_NULL: return "null";
+        case VAL_BOOL: return "bool";
+        case VAL_ERROR: return "error";
+        case VAL_TUPLE: return "tuple";
+        case VAL_PTR: return "ptr";
+    }
+    return "unknown";
+}
+
+const char* value_type_color(Value v) {
+    if (!use_colors) return "";
+    switch (v.type) {
+        case VAL_INT: return COLOR_CYAN;
+        case VAL_DOUBLE: return COLOR_BLUE;
+        case VAL_STRING: return COLOR_GREEN;
+        case VAL_FUNC: return COLOR_MAGENTA;
+        case VAL_LIST: return COLOR_YELLOW;
+        case VAL_NULL: return COLOR_GRAY;
+        case VAL_BOOL: return COLOR_RED;
+        case VAL_ERROR: return COLOR_RED;
+        case VAL_TUPLE: return COLOR_MAGENTA;
+        case VAL_PTR: return COLOR_WHITE;
+    }
+    return COLOR_RESET;
 }
 
 struct Env {
@@ -206,24 +336,81 @@ typedef enum {
     T_EQ, T_NE, T_LT, T_GT, T_LE, T_GE,
     T_LAMBDA, T_IF, T_ELSE, T_WHILE, T_TRUE, T_FALSE,
     T_CONST, T_IMPORT,  T_LC, T_RC,
-    T_RETURN, T_BREAK,T_CONTINUE,
-    T_EOF
+    T_RETURN, T_BREAK, T_CONTINUE,
+    T_LINK, T_EXTERN,
+    T_EOF, T_ERROR
 } TokType;
 
 typedef struct {
     TokType type;
     char text[256];
     double dval;
+    SourceLoc loc;
 } Token;
 
 const char *src;
+const char *src_start;
 Token tok;
+
+const char* token_name(TokType t) {
+    switch (t) {
+        case T_INT: return "integer";
+        case T_DOUBLE: return "double";
+        case T_STRING: return "string";
+        case T_IDENT: return "identifier";
+        case T_LP: return "'('";
+        case T_RP: return "')'";
+        case T_COMMA: return "','";
+        case T_LB: return "'['";
+        case T_RB: return "']'";
+        case T_DOT: return "'.'";
+        case T_PLUS: return "'+'";
+        case T_MINUS: return "'-'";
+        case T_STAR: return "'*'";
+        case T_SLASH: return "'/'";
+        case T_MOD: return "'%'";
+        case T_POW: return "'**'";
+        case T_ASSIGN: return "'='";
+        case T_COLON: return "':'";
+        case T_SEMI: return "';'";
+        case T_EQ: return "'=='";
+        case T_NE: return "'!='";
+        case T_LT: return "'<'";
+        case T_GT: return "'>'";
+        case T_LE: return "'<='";
+        case T_GE: return "'>='";
+        case T_LAMBDA: return "'lambda'";
+        case T_IF: return "'if'";
+        case T_ELSE: return "'else'";
+        case T_WHILE: return "'while'";
+        case T_TRUE: return "'True'";
+        case T_FALSE: return "'False'";
+        case T_CONST: return "'const'";
+        case T_IMPORT: return "'import'";
+        case T_LC: return "'{'";
+        case T_RC: return "'}'";
+        case T_RETURN: return "'return'";
+        case T_BREAK: return "'break'";
+        case T_CONTINUE: return "'continue'";
+        case T_LINK: return "'link'";
+        case T_EXTERN: return "'extern'";
+        case T_EOF: return "end of file";
+        case T_ERROR: return "error";
+    }
+    return "unknown";
+}
 
 void skip_ws(void) {
     while (*src && (isspace(*src) || *src == '#')) {
         if (*src == '#') {
             while (*src && *src != '\n') src++;
         } else {
+            if (*src == '\n') {
+                current_loc.line++;
+                current_loc.column = 1;
+            } else {
+                current_loc.column++;
+            }
             src++;
         }
     }
@@ -234,7 +421,13 @@ bool is_ident(char c) { return isalnum(c) || c == '_'; }
 
 void next_token(void) {
     skip_ws();
-    if (!*src) { tok.type=T_EOF; return; }
+    tok.loc = current_loc;
+
+    if (!*src) {
+        tok.type = T_EOF;
+        strcpy(tok.text, "");
+        return;
+    }
 
     if (isdigit(*src) || (*src == '.' && isdigit(*(src+1)))) {
         bool has_dot = false;
@@ -243,6 +436,7 @@ void next_token(void) {
         while (isdigit(*src) || (*src == '.' && !has_dot)) {
             if (*src == '.') has_dot = true;
             src++;
+            current_loc.column++;
         }
         if (has_dot) {
             tok.type = T_DOUBLE;
@@ -258,10 +452,12 @@ void next_token(void) {
 
     if (*src=='"' || *src=='\'') {
         char quote = *src++;
+        current_loc.column++;
         char *p=tok.text;
         while (*src && *src!=quote) {
             if (*src == '\\' && *(src+1)) {
                 src++;
+                current_loc.column++;
                 switch (*src) {
                     case 'n': *p++ = '\n'; break;
                     case 't': *p++ = '\t'; break;
@@ -269,19 +465,34 @@ void next_token(void) {
                     default: *p++ = *src; break;
                 }
                 src++;
+                current_loc.column++;
             } else {
+                if (*src == '\n') {
+                    current_loc.line++;
+                    current_loc.column = 1;
+                } else {
+                    current_loc.column++;
+                }
                 *p++=*src++;
             }
         }
         *p=0;
-        if (*src==quote) src++;
+        if (*src==quote) {
+            src++;
+            current_loc.column++;
+        } else {
+            error_at(tok.loc, "unterminated string literal");
+        }
         tok.type=T_STRING;
         return;
     }
 
     if (is_ident_start(*src)) {
         char *p=tok.text;
-        while (is_ident(*src)) *p++=*src++;
+        while (is_ident(*src)) {
+            *p++=*src++;
+            current_loc.column++;
+        }
         *p=0;
         if (!strcmp(tok.text,"lambda")) tok.type=T_LAMBDA;
         else if (!strcmp(tok.text,"if")) tok.type=T_IF;
@@ -294,48 +505,56 @@ void next_token(void) {
         else if (!strcmp(tok.text,"return")) tok.type = T_RETURN;
         else if (!strcmp(tok.text,"break")) tok.type = T_BREAK;
         else if (!strcmp(tok.text,"continue")) tok.type = T_CONTINUE;
+        else if (!strcmp(tok.text,"link")) tok.type = T_LINK;
+        else if (!strcmp(tok.text,"extern")) tok.type = T_EXTERN;
         else tok.type=T_IDENT;
         return;
     }
 
-    if (*src == '=' && *(src+1) == '=') { src += 2; tok.type = T_EQ; return; }
-    if (*src == '!' && *(src+1) == '=') { src += 2; tok.type = T_NE; return; }
-    if (*src == '<' && *(src+1) == '=') { src += 2; tok.type = T_LE; return; }
-    if (*src == '>' && *(src+1) == '=') { src += 2; tok.type = T_GE; return; }
-    if (*src == '*' && *(src+1) == '*') { src += 2; tok.type = T_POW; return; }
+    if (*src == '=' && *(src+1) == '=') { src += 2; current_loc.column += 2; tok.type = T_EQ; strcpy(tok.text, "=="); return; }
+    if (*src == '!' && *(src+1) == '=') { src += 2; current_loc.column += 2; tok.type = T_NE; strcpy(tok.text, "!="); return; }
+    if (*src == '<' && *(src+1) == '=') { src += 2; current_loc.column += 2; tok.type = T_LE; strcpy(tok.text, "<="); return; }
+    if (*src == '>' && *(src+1) == '=') { src += 2; current_loc.column += 2; tok.type = T_GE; strcpy(tok.text, ">="); return; }
+    if (*src == '*' && *(src+1) == '*') { src += 2; current_loc.column += 2; tok.type = T_POW; strcpy(tok.text, "**"); return; }
 
-    switch (*src++) {
-        case '+': tok.type=T_PLUS; return;
-        case '-': tok.type=T_MINUS; return;
-        case '*': tok.type=T_STAR; return;
-        case '/': tok.type=T_SLASH; return;
-        case '%': tok.type=T_MOD; return;
-        case '(': tok.type=T_LP; return;
-        case ')': tok.type=T_RP; return;
-        case '[': tok.type=T_LB; return;
-        case ']': tok.type=T_RB; return;
-        case ',': tok.type=T_COMMA; return;
-        case '=': tok.type=T_ASSIGN; return;
-        case ':': tok.type=T_COLON; return;
-        case ';': tok.type=T_SEMI; return;
-        case '.': tok.type=T_DOT; return;
-        case '<': tok.type=T_LT; return;
-        case '>': tok.type=T_GT; return;
-        case '{': tok.type = T_LC; return;
-        case '}': tok.type = T_RC; return;
+    char ch = *src++;
+    current_loc.column++;
+
+    switch (ch) {
+        case '+': tok.type=T_PLUS; strcpy(tok.text, "+"); return;
+        case '-': tok.type=T_MINUS; strcpy(tok.text, "-"); return;
+        case '*': tok.type=T_STAR; strcpy(tok.text, "*"); return;
+        case '/': tok.type=T_SLASH; strcpy(tok.text, "/"); return;
+        case '%': tok.type=T_MOD; strcpy(tok.text, "%"); return;
+        case '(': tok.type=T_LP; strcpy(tok.text, "("); return;
+        case ')': tok.type=T_RP; strcpy(tok.text, ")"); return;
+        case '[': tok.type=T_LB; strcpy(tok.text, "["); return;
+        case ']': tok.type=T_RB; strcpy(tok.text, "]"); return;
+        case ',': tok.type=T_COMMA; strcpy(tok.text, ","); return;
+        case '=': tok.type=T_ASSIGN; strcpy(tok.text, "="); return;
+        case ':': tok.type=T_COLON; strcpy(tok.text, ":"); return;
+        case ';': tok.type=T_SEMI; strcpy(tok.text, ";"); return;
+        case '.': tok.type=T_DOT; strcpy(tok.text, "."); return;
+        case '<': tok.type=T_LT; strcpy(tok.text, "<"); return;
+        case '>': tok.type=T_GT; strcpy(tok.text, ">"); return;
+        case '{': tok.type=T_LC; strcpy(tok.text, "{"); return;
+        case '}': tok.type=T_RC; strcpy(tok.text, "}"); return;
     }
-    fprintf(stderr,"Unknown character: %c\n", *(src-1));
-    exit(1);
+
+    snprintf(tok.text, sizeof(tok.text), "%c", ch);
+    tok.type = T_ERROR;
+    error_at(tok.loc, "unexpected character '%c' (0x%02x)", ch, (unsigned char)ch);
 }
 
 typedef enum {
     A_INT, A_DOUBLE, A_STRING, A_VAR, A_BOOL,
     A_BINOP, A_CALL, A_LAMBDA, A_ASSIGN, A_IF, A_WHILE,
-    A_LIST, A_INDEX, A_METHOD, A_BLOCK, A_RETURN, A_BREAK, A_CONTINUE
+    A_LIST, A_INDEX, A_METHOD, A_BLOCK, A_RETURN, A_BREAK, A_CONTINUE, A_TUPLE
 } ASTType;
 
 struct AST {
     ASTType type;
+    SourceLoc loc;
     union {
         long long i;
         double d;
@@ -363,13 +582,23 @@ AST *ast_new(ASTType t) {
     AST *a=xmalloc(sizeof(AST));
     memset(a,0,sizeof(AST));
     a->type=t;
+    a->loc = tok.loc;
     return a;
+}
+
+bool expect(TokType expected) {
+    if (tok.type != expected) {
+        error_at(tok.loc, "expected %s but got %s",
+                 token_name(expected), token_name(tok.type));
+        return false;
+    }
+    return true;
 }
 
 AST *parse_block(void) {
     if (tok.type != T_LC) {
-        printf("Expected {\n");
-        exit(1);
+        error_at(tok.loc, "expected '{' but got %s", token_name(tok.type));
+        return ast_new(A_BLOCK);
     }
     next_token();
 
@@ -377,17 +606,21 @@ AST *parse_block(void) {
     size_t n = 0;
 
     while (tok.type != T_RC && tok.type != T_EOF) {
-        stmts[n++] = parse_stmt();
+        AST *stmt = parse_stmt();
+        if (stmt) stmts[n++] = stmt;
         if (tok.type == T_SEMI) {
+            next_token();
+        }
+        if (tok.type == T_ERROR) {
             next_token();
         }
     }
 
     if (tok.type != T_RC) {
-        printf("Expected }\n");
-        exit(1);
+        error_at(tok.loc, "expected '}' but got %s", token_name(tok.type));
+    } else {
+        next_token();
     }
-    next_token();
 
     AST *b = ast_new(A_BLOCK);
     b->block.stmts = stmts;
@@ -400,6 +633,44 @@ AST *parse_primary(void) {
 
     if (tok.type == T_LC)
         return parse_block();
+
+    if (tok.type == T_LAMBDA) {
+        SourceLoc lambda_loc = tok.loc;
+        next_token();
+        char **params = xmalloc(sizeof(char*) * 16);
+        size_t n = 0;
+
+        if (tok.type == T_IDENT) {
+            params[n++] = xstrdup(tok.text);
+            next_token();
+
+            while (tok.type == T_COMMA) {
+                next_token();
+                if (tok.type != T_IDENT) {
+                    error_at(tok.loc, "expected parameter name after comma");
+                    break;
+                }
+                params[n++] = xstrdup(tok.text);
+                next_token();
+            }
+        }
+
+        if (tok.type != T_COLON) {
+            error_at(tok.loc, "expected ':' after lambda parameters");
+            if (tok.type != T_EOF) next_token();
+        } else {
+            next_token();
+        }
+
+        AST *body = parse_expr();
+
+        AST *lambda = ast_new(A_LAMBDA);
+        lambda->loc = lambda_loc;
+        lambda->lambda.params = params;
+        lambda->lambda.arity = n;
+        lambda->lambda.body = body;
+        return lambda;
+    }
 
     if (tok.type == T_LB) {
         next_token();
@@ -418,10 +689,10 @@ AST *parse_primary(void) {
         }
 
         if (tok.type != T_RB) {
-            printf("Expected ]\n");
-            exit(1);
+            error_at(tok.loc, "expected ']' but got %s", token_name(tok.type));
+        } else {
+            next_token();
         }
-        next_token();
 
         AST *list = ast_new(A_LIST);
         list->list.items = items;
@@ -499,14 +770,44 @@ AST *parse_primary(void) {
 
     if (tok.type == T_LP) {
         next_token();
-        a = parse_expr();
-        if (tok.type != T_RP) exit(1);
-        next_token();
-        return a;
+
+        AST **items = xmalloc(sizeof(AST*) * 64);
+        size_t n = 0;
+
+        if (tok.type != T_RP) {
+            items[n++] = parse_expr();
+
+            if (tok.type == T_COMMA) {
+                while (tok.type == T_COMMA) {
+                    next_token();
+                    if (tok.type == T_RP) break;
+                    items[n++] = parse_expr();
+                }
+
+                if (!expect(T_RP)) {
+                } else {
+                    next_token();
+                }
+
+                AST *tuple = ast_new(A_TUPLE);
+                tuple->list.items = items;
+                tuple->list.count = n;
+                return tuple;
+            }
+        }
+
+        if (!expect(T_RP)) {
+        } else {
+            next_token();
+        }
+
+        if (n == 0) return ast_new(A_INT);
+        return items[0];
     }
 
-    printf("Invalid expression\n");
-    exit(1);
+    error_at(tok.loc, "expected expression but got %s", token_name(tok.type));
+    next_token();
+    return ast_new(A_INT);
 }
 
 AST *parse_postfix(void) {
@@ -523,8 +824,10 @@ AST *parse_postfix(void) {
                     else break;
                 }
             }
-            if (tok.type != T_RP) exit(1);
-            next_token();
+            if (!expect(T_RP)) {
+            } else {
+                next_token();
+            }
             AST *c = ast_new(A_CALL);
             c->call.fn = a;
             c->call.args = args;
@@ -533,15 +836,20 @@ AST *parse_postfix(void) {
         } else if (tok.type == T_LB) {
             next_token();
             AST *idx = parse_expr();
-            if (tok.type != T_RB) { printf("Expected ]\n"); exit(1); }
-            next_token();
+            if (!expect(T_RB)) {
+            } else {
+                next_token();
+            }
             AST *c = ast_new(A_INDEX);
             c->index.obj = a;
             c->index.idx = idx;
             a = c;
         } else if (tok.type == T_DOT) {
             next_token();
-            if (tok.type != T_IDENT) { printf("Expected method\n"); exit(1); }
+            if (!expect(T_IDENT)) {
+                next_token();
+                break;
+            }
             char *method = xstrdup(tok.text);
             next_token();
             if (tok.type == T_LP) {
@@ -555,8 +863,10 @@ AST *parse_postfix(void) {
                         else break;
                     }
                 }
-                if (tok.type != T_RP) exit(1);
-                next_token();
+                if (!expect(T_RP)) {
+                } else {
+                    next_token();
+                }
                 AST *c = ast_new(A_METHOD);
                 c->method.obj = a;
                 c->method.method = method;
@@ -661,7 +971,9 @@ AST *parse_expr(void) {
         if (tok.type == T_LC)
             then_block = parse_block();
         else {
-            if (tok.type != T_COLON) exit(1);
+            if (!expect(T_COLON)) {
+                return ast_new(A_INT);
+            }
             next_token();
             then_block = parse_expr();
         }
@@ -671,7 +983,9 @@ AST *parse_expr(void) {
             if (tok.type == T_LC)
                 else_block = parse_block();
             else {
-                if (tok.type != T_COLON) exit(1);
+                if (!expect(T_COLON)) {
+                    return ast_new(A_INT);
+                }
                 next_token();
                 else_block = parse_expr();
             }
@@ -692,7 +1006,9 @@ AST *parse_expr(void) {
         if (tok.type == T_LC)
             body = parse_block();
         else {
-            if (tok.type != T_COLON) exit(1);
+            if (!expect(T_COLON)) {
+                return ast_new(A_INT);
+            }
             next_token();
             body = parse_expr();
         }
@@ -710,38 +1026,100 @@ AST *parse_stmt(void) {
     return parse_expr();
 }
 
+void print_value(Value v) {
+    const char *color = value_type_color(v);
+    const char *reset = use_colors ? COLOR_RESET : "";
+
+    switch (v.type) {
+        case VAL_INT:
+            printf("%s%lld%s", color, v.i, reset);
+            break;
+        case VAL_DOUBLE:
+            printf("%s%g%s", color, v.d, reset);
+            break;
+        case VAL_STRING:
+            printf("%s%s%s", color, v.s, reset);
+            break;
+        case VAL_BOOL:
+            printf("%s%s%s", color, v.b ? "True" : "False", reset);
+            break;
+        case VAL_NULL:
+            printf("%sNone%s", color, reset);
+            break;
+        case VAL_ERROR:
+            printf("%sError: %s%s", color, v.s, reset);
+            break;
+        case VAL_FUNC:
+            printf("%s<function>%s", color, reset);
+            break;
+        case VAL_PTR:
+            printf("%s<ptr:%p>%s", color, v.ptr, reset);
+            break;
+        case VAL_LIST:
+            printf("%s[%s", color, reset);
+            for (size_t j = 0; j < v.list->size; j++) {
+                if (j > 0) printf(", ");
+                Value item = v.list->items[j];
+                if (item.type == VAL_INT)
+                    printf("%s%lld%s", value_type_color(item), item.i, reset);
+                else if (item.type == VAL_DOUBLE)
+                    printf("%s%g%s", value_type_color(item), item.d, reset);
+                else if (item.type == VAL_STRING)
+                    printf("%s\"%s\"%s", value_type_color(item), item.s, reset);
+                else if (item.type == VAL_BOOL)
+                    printf("%s%s%s", value_type_color(item), item.b ? "True" : "False", reset);
+                else if (item.type == VAL_PTR)
+                    printf("%s<ptr:%p>%s", value_type_color(item), item.ptr, reset);
+                else
+                    printf("?");
+            }
+            printf("%s]%s", color, reset);
+            break;
+        case VAL_TUPLE:
+            printf("%s(%s", color, reset);
+            for (size_t j = 0; j < v.tuple->size; j++) {
+                if (j > 0) printf(", ");
+                Value item = v.tuple->items[j];
+                if (item.type == VAL_INT)
+                    printf("%s%lld%s", value_type_color(item), item.i, reset);
+                else if (item.type == VAL_DOUBLE)
+                    printf("%s%g%s", value_type_color(item), item.d, reset);
+                else if (item.type == VAL_STRING)
+                    printf("%s\"%s\"%s", value_type_color(item), item.s, reset);
+                else if (item.type == VAL_BOOL)
+                    printf("%s%s%s", value_type_color(item), item.b ? "True" : "False", reset);
+                else if (item.type == VAL_PTR)
+                    printf("%s<ptr:%p>%s", value_type_color(item), item.ptr, reset);
+                else
+                    printf("?");
+            }
+            printf("%s)%s", color, reset);
+            break;
+    }
+}
+
 Value builtin_print(Value *args, size_t argc) {
     for (size_t i = 0; i < argc; i++) {
         if (i > 0) printf(" ");
-        switch (args[i].type) {
-            case VAL_INT: printf("%lld", args[i].i); break;
-            case VAL_DOUBLE: printf("%g", args[i].d); break;
-            case VAL_STRING: printf("%s", args[i].s); break;
-            case VAL_BOOL: printf("%s", args[i].b ? "True" : "False"); break;
-            case VAL_NULL: printf("None"); break;
-            case VAL_FUNC: printf("<function>"); break;
-            case VAL_LIST:
-                printf("[");
-                for (size_t j = 0; j < args[i].list->size; j++) {
-                    if (j > 0) printf(", ");
-                    Value v = args[i].list->items[j];
-                    if (v.type == VAL_INT) printf("%lld", v.i);
-                    else if (v.type == VAL_DOUBLE) printf("%g", v.d);
-                    else if (v.type == VAL_STRING) printf("\"%s\"", v.s);
-                    else printf("?");
-                }
-                printf("]");
-                break;
-        }
+        print_value(args[i]);
     }
     printf("\n");
+    fflush(stdout);
     return v_null();
+}
+
+Value builtin_type(Value *args, size_t argc) {
+    if (argc != 1) {
+        fprintf(stderr, "type() takes exactly 1 argument\n");
+        return v_null();
+    }
+    return v_str(value_type_name(args[0]));
 }
 
 Value builtin_assert(Value *args, size_t argc) {
     if (argc < 1 || argc > 2) {
         fprintf(stderr, "assert() takes 1 or 2 arguments\n");
-        exit(1);
+        return v_int(1);
     }
 
     if (argc == 1) {
@@ -770,7 +1148,7 @@ Value builtin_assert(Value *args, size_t argc) {
 Value builtin_test(Value *args, size_t argc) {
     if (argc != 2) {
         fprintf(stderr, "test() takes 2 arguments\n");
-        exit(1);
+        return v_bool(false);
     }
 
     bool equal = false;
@@ -787,12 +1165,14 @@ Value builtin_test(Value *args, size_t argc) {
     } else {
         printf("Fail\n");
     }
+    fflush(stdout);
     return v_bool(equal);
 }
 
 Value builtin_len(Value *args, size_t argc) {
     if (argc != 1) return v_null();
     if (args[0].type == VAL_LIST) return v_int(args[0].list->size);
+    if (args[0].type == VAL_TUPLE) return v_int(args[0].tuple->size);
     if (args[0].type == VAL_STRING) return v_int(strlen(args[0].s));
     return v_null();
 }
@@ -825,32 +1205,417 @@ Value builtin_range(Value *args, size_t argc) {
     return result;
 }
 
+Value builtin_int(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("int() takes exactly 1 argument");
+    }
+
+    Value arg = args[0];
+
+    switch (arg.type) {
+        case VAL_INT:
+            return arg;
+        case VAL_DOUBLE:
+            return v_int((long long)arg.d);
+        case VAL_BOOL:
+            return v_int(arg.b ? 1 : 0);
+        case VAL_PTR:
+            return v_int((long long)arg.ptr);
+        case VAL_STRING: {
+            char *endptr;
+            long long val = strtoll(arg.s, &endptr, 10);
+            if (*endptr != '\0') {
+                return v_error("cannot convert string to int: invalid format");
+            }
+            return v_int(val);
+        }
+        default:
+            return v_error("cannot convert to int");
+    }
+}
+
+Value builtin_double(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("double() takes exactly 1 argument");
+    }
+
+    Value arg = args[0];
+
+    switch (arg.type) {
+        case VAL_DOUBLE:
+            return arg;
+        case VAL_INT:
+            return v_double((double)arg.i);
+        case VAL_BOOL:
+            return v_double(arg.b ? 1.0 : 0.0);
+        case VAL_STRING: {
+            char *endptr;
+            double val = strtod(arg.s, &endptr);
+            if (*endptr != '\0') {
+                return v_error("cannot convert string to double: invalid format");
+            }
+            return v_double(val);
+        }
+        default:
+            return v_error("cannot convert to double");
+    }
+}
+
+Value builtin_str(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("str() takes exactly 1 argument");
+    }
+
+    Value arg = args[0];
+    char buf[256];
+
+    switch (arg.type) {
+        case VAL_STRING:
+            return arg;
+        case VAL_INT:
+            snprintf(buf, sizeof(buf), "%lld", arg.i);
+            return v_str(buf);
+        case VAL_DOUBLE:
+            snprintf(buf, sizeof(buf), "%g", arg.d);
+            return v_str(buf);
+        case VAL_BOOL:
+            return v_str(arg.b ? "True" : "False");
+        case VAL_NULL:
+            return v_str("None");
+        case VAL_PTR:
+            snprintf(buf, sizeof(buf), "<ptr:%p>", arg.ptr);
+            return v_str(buf);
+        case VAL_ERROR:
+            snprintf(buf, sizeof(buf), "Error: %s", arg.s);
+            return v_str(buf);
+        default:
+            return v_error("cannot convert to string");
+    }
+}
+
+Value builtin_bool(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("bool() takes exactly 1 argument");
+    }
+
+    return v_bool(value_is_truthy(args[0]));
+}
+
+Value builtin_is_error(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("is_error() takes exactly 1 argument");
+    }
+
+    return v_bool(args[0].type == VAL_ERROR);
+}
+
+Value builtin_is_null(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("is_null() takes exactly 1 argument");
+    }
+
+    return v_bool(args[0].type == VAL_NULL || (args[0].type == VAL_PTR && args[0].ptr == NULL));
+}
+
+Value builtin_ptr_to_int(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("ptr_to_int() takes exactly 1 argument");
+    }
+
+    if (args[0].type == VAL_PTR) {
+        return v_int((long long)args[0].ptr);
+    }
+
+    return v_error("ptr_to_int() requires a pointer argument");
+}
+
+Value builtin_int_to_ptr(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("int_to_ptr() takes exactly 1 argument");
+    }
+
+    if (args[0].type == VAL_INT) {
+        return v_ptr((void*)args[0].i);
+    }
+
+    return v_error("int_to_ptr() requires an integer argument");
+}
+
+Value builtin_tuple(Value *args, size_t argc) {
+    return v_tuple(args, argc);
+}
+
 Value builtin_help(Value *args, size_t argc) {
     (void)args; (void)argc;
     printf("\n=== Built-in Functions ===\n");
-    printf("print(...)  - Print values\n");
-    printf("assert(...) - Asserts two expressions\n");
-    printf("len(obj)    - Get length\n");
-    printf("range(...)  - Create range list\n");
-    printf("help()      - This message\n");
+    printf("print(...)     - Print values\n");
+    printf("type(x)        - Get type of value\n");
+    printf("assert(...)    - Asserts two expressions\n");
+    printf("len(obj)       - Get length\n");
+    printf("range(...)     - Create range list\n");
+    printf("tuple(...)     - Create tuple\n");
+    printf("help()         - This message\n");
+    printf("\n=== Type Conversion ===\n");
+    printf("int(x)         - Convert to integer\n");
+    printf("double(x)      - Convert to double\n");
+    printf("str(x)         - Convert to string\n");
+    printf("bool(x)        - Convert to boolean\n");
+    printf("is_error(x)    - Check if value is error\n");
+    printf("is_null(x)     - Check if value is null/NULL pointer\n");
+    printf("\n=== Pointer Operations ===\n");
+    printf("ptr_to_int(p)  - Convert pointer to integer\n");
+    printf("int_to_ptr(i)  - Convert integer to pointer\n");
+    printf("\n=== FFI (Foreign Function Interface) ===\n");
+    printf("link \"lib.so\"   - Load C shared library\n");
+    printf("extern f = c_func(int, string): int - Declare C function\n");
+    printf("  Supported types: int, double, string, void, ptr, long, float, char, bool\n");
+    printf("\n=== Working with Structs (via FFI) ===\n");
+    printf("1. Create C wrapper functions that return/accept pointers\n");
+    printf("2. Declare wrappers with 'extern'\n");
+    printf("3. Use 'ptr' type for struct pointers\n");
+    printf("Example:\n");
+    printf("  extern new_vec = Vector2_new(float, float): ptr\n");
+    printf("  extern get_x = Vector2_get_x(ptr): float\n");
+    printf("  v = new_vec(10.0, 20.0)\n");
+    printf("  x = get_x(v)\n");
     printf("\n=== Syntax ===\n");
     printf("x = 10                   - Variable\n");
     printf("const pi = 3.14          - Constant variable\n");
     printf("f(x) = x * 2             - Function\n");
-    printf("const square(x) = x * x  - Constant function\n");
-    printf("f(g, x) = g(x) + 1       - Composition\n");
+    printf("lambda x: x * 2          - Lambda expression\n");
     printf("import \"file.calc\"       - Import file\n");
     printf("nums = [1, 2, 3]         - List literal\n");
-    printf("\n=== Features ===\n");
-    printf("- Late binding: redefine g, f auto-updates\n");
-    printf("- const: prevents reassignment\n");
-    printf("- import: load .calc files\n");
-    printf("- List literals: [1, 2, 3, 4]\n");
+    printf("point = (10, 20)         - Tuple literal\n");
     printf("\n");
+    fflush(stdout);
     return v_null();
 }
 
 Value eval(AST *a, Env *env);
+
+void load_library(const char *path) {
+    for (size_t i = 0; i < loaded_libs_count; i++) {
+        if (!strcmp(loaded_libs[i].name, path)) {
+            return;
+        }
+    }
+
+    void *handle = dlopen(path, RTLD_LAZY);
+    if (!handle) {
+        fprintf(stderr, "Error loading library '%s': %s\n", path, dlerror());
+        return;
+    }
+
+    if (loaded_libs_count >= loaded_libs_capacity) {
+        size_t new_cap = loaded_libs_capacity == 0 ? 4 : loaded_libs_capacity * 2;
+        LoadedLib *new_libs = realloc(loaded_libs, sizeof(LoadedLib) * new_cap);
+        if (!new_libs) {
+            dlclose(handle);
+            return;
+        }
+        loaded_libs = new_libs;
+        loaded_libs_capacity = new_cap;
+    }
+
+    loaded_libs[loaded_libs_count].name = strdup(path);
+    loaded_libs[loaded_libs_count].handle = handle;
+    loaded_libs_count++;
+
+    printf("Loaded library: %s\n", path);
+    fflush(stdout);
+}
+
+void* find_symbol(const char *name) {
+    for (size_t i = 0; i < loaded_libs_count; i++) {
+        void *sym = dlsym(loaded_libs[i].handle, name);
+        if (sym) return sym;
+    }
+    return NULL;
+}
+
+FFIType parse_ffi_type(const char *type_name) {
+    if (!strcmp(type_name, "int")) return FFI_INT;
+    if (!strcmp(type_name, "double")) return FFI_DOUBLE;
+    if (!strcmp(type_name, "string")) return FFI_STRING;
+    if (!strcmp(type_name, "void")) return FFI_VOID;
+    if (!strcmp(type_name, "ptr")) return FFI_PTR;
+    if (!strcmp(type_name, "long")) return FFI_LONG;
+    if (!strcmp(type_name, "float")) return FFI_FLOAT;
+    if (!strcmp(type_name, "char")) return FFI_CHAR;
+    if (!strcmp(type_name, "bool")) return FFI_BOOL;
+    return FFI_VOID;
+}
+
+void register_extern(const char *ccalc_name, const char *c_name,
+                    FFIType *param_types, size_t param_count, FFIType return_type) {
+    void *func_ptr = find_symbol(c_name);
+    if (!func_ptr) {
+        fprintf(stderr, "Error: Symbol '%s' not found in loaded libraries\n", c_name);
+        return;
+    }
+
+    if (extern_funcs_count >= extern_funcs_capacity) {
+        size_t new_cap = extern_funcs_capacity == 0 ? 8 : extern_funcs_capacity * 2;
+        ExternFunc *new_funcs = realloc(extern_funcs, sizeof(ExternFunc) * new_cap);
+        if (!new_funcs) return;
+        extern_funcs = new_funcs;
+        extern_funcs_capacity = new_cap;
+    }
+
+    extern_funcs[extern_funcs_count].name = strdup(ccalc_name);
+    extern_funcs[extern_funcs_count].c_name = strdup(c_name);
+    extern_funcs[extern_funcs_count].func_ptr = func_ptr;
+    extern_funcs[extern_funcs_count].param_types = malloc(sizeof(FFIType) * param_count);
+    memcpy(extern_funcs[extern_funcs_count].param_types, param_types, sizeof(FFIType) * param_count);
+    extern_funcs[extern_funcs_count].param_count = param_count;
+    extern_funcs[extern_funcs_count].return_type = return_type;
+    extern_funcs_count++;
+
+    Function *ffi_func = xmalloc(sizeof(Function));
+    ffi_func->is_builtin = false;
+    ffi_func->arity = param_count;
+    ffi_func->params = NULL;
+    ffi_func->body = NULL;
+    ffi_func->closure_env = NULL;
+
+    env_set(global_env, ccalc_name, v_func(ffi_func), false);
+
+    printf("Registered extern function: %s -> %s\n", ccalc_name, c_name);
+    fflush(stdout);
+}
+
+ExternFunc* find_extern(const char *name) {
+    for (size_t i = 0; i < extern_funcs_count; i++) {
+        if (!strcmp(extern_funcs[i].name, name)) {
+            return &extern_funcs[i];
+        }
+    }
+    return NULL;
+}
+
+Value call_extern(ExternFunc *ext, Value *args) {
+    if (!ext || !ext->func_ptr) {
+        return v_error("extern function not found or not loaded");
+    }
+
+    void *func = ext->func_ptr;
+    long long params[16] = {0};
+
+    for (size_t i = 0; i < ext->param_count && i < 16; i++) {
+        Value arg = args[i];
+
+        switch (ext->param_types[i]) {
+            case FFI_INT:
+            case FFI_LONG:
+            case FFI_CHAR:
+            case FFI_BOOL:
+                if (arg.type == VAL_INT) params[i] = arg.i;
+                else if (arg.type == VAL_DOUBLE) params[i] = (long long)arg.d;
+                else if (arg.type == VAL_BOOL) params[i] = arg.b ? 1 : 0;
+                else return v_error("invalid argument type for FFI int parameter");
+                break;
+
+            case FFI_DOUBLE:
+            case FFI_FLOAT: {
+                double dval;
+                if (arg.type == VAL_DOUBLE) dval = arg.d;
+                else if (arg.type == VAL_INT) dval = (double)arg.i;
+                else return v_error("invalid argument type for FFI double parameter");
+                
+                if (ext->param_types[i] == FFI_FLOAT) {
+                    float fval = (float)dval;
+                    memcpy(&params[i], &fval, sizeof(float));
+                } else {
+                    memcpy(&params[i], &dval, sizeof(double));
+                }
+                break;
+            }
+
+            case FFI_STRING:
+                if (arg.type == VAL_STRING) params[i] = (long long)arg.s;
+                else return v_error("invalid argument type for FFI string parameter");
+                break;
+
+            case FFI_PTR:
+                if (arg.type == VAL_PTR) params[i] = (long long)arg.ptr;
+                else if (arg.type == VAL_STRING) params[i] = (long long)arg.s;
+                else if (arg.type == VAL_INT) params[i] = arg.i;
+                else params[i] = 0;
+                break;
+
+            case FFI_VOID:
+                break;
+        }
+    }
+
+    long long result;
+    switch (ext->param_count) {
+        case 0:
+            result = ((long long (*)(void))func)();
+            break;
+        case 1:
+            result = ((long long (*)(long long))func)(params[0]);
+            break;
+        case 2:
+            result = ((long long (*)(long long, long long))func)(params[0], params[1]);
+            break;
+        case 3:
+            result = ((long long (*)(long long, long long, long long))func)(
+                params[0], params[1], params[2]);
+            break;
+        case 4:
+            result = ((long long (*)(long long, long long, long long, long long))func)(
+                params[0], params[1], params[2], params[3]);
+            break;
+        case 5:
+            result = ((long long (*)(long long, long long, long long, long long, long long))func)(
+                params[0], params[1], params[2], params[3], params[4]);
+            break;
+        case 6:
+            result = ((long long (*)(long long, long long, long long, long long, long long, long long))func)(
+                params[0], params[1], params[2], params[3], params[4], params[5]);
+            break;
+        case 7:
+            result = ((long long (*)(long long, long long, long long, long long, long long, long long, long long))func)(
+                params[0], params[1], params[2], params[3], params[4], params[5], params[6]);
+            break;
+        case 8:
+            result = ((long long (*)(long long, long long, long long, long long, long long, long long, long long, long long))func)(
+                params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7]);
+            break;
+        default:
+            return v_error("FFI calls support max 8 parameters");
+    }
+
+    switch (ext->return_type) {
+        case FFI_INT:
+        case FFI_LONG:
+        case FFI_CHAR:
+        case FFI_BOOL:
+            return v_int(result);
+        case FFI_DOUBLE:
+        case FFI_FLOAT: {
+            if (ext->return_type == FFI_FLOAT) {
+                float fval;
+                memcpy(&fval, &result, sizeof(float));
+                return v_double((double)fval);
+            } else {
+                double dval;
+                memcpy(&dval, &result, sizeof(double));
+                return v_double(dval);
+            }
+        }
+        case FFI_STRING:
+            if (result == 0) return v_null();
+            return v_str((const char*)result);
+        case FFI_PTR:
+            return v_ptr((void*)result);
+        case FFI_VOID:
+            return v_null();
+    }
+
+    return v_null();
+}
 
 Value call(Function *fn, AST **args, size_t argc, Env *caller) {
     if (fn->is_builtin) {
@@ -870,7 +1635,8 @@ Value call(Function *fn, AST **args, size_t argc, Env *caller) {
     }
 
     Env *local = env_new();
-    local->next = global_env;
+    local->next = fn->closure_env ? fn->closure_env : global_env;
+
     for (size_t i=0;i<fn->arity;i++)
         env_set(local,fn->params[i],eval(args[i],caller), false);
     Value result = eval(fn->body, local);
@@ -945,14 +1711,49 @@ Value eval(AST *a, Env *env) {
                 list_append(v.list, eval(a->list.items[i], env));
             return v;
         }
+        case A_TUPLE: {
+            Value *items = xmalloc(sizeof(Value) * a->list.count);
+            for (size_t i = 0; i < a->list.count; i++)
+                items[i] = eval(a->list.items[i], env);
+            return v_tuple(items, a->list.count);
+        }
         case A_INDEX: {
             Value obj = eval(a->index.obj, env);
             Value idx = eval(a->index.idx, env);
+
+            if (obj.type == VAL_ERROR) return obj;
+            if (idx.type == VAL_ERROR) return idx;
+
             if (obj.type == VAL_LIST && idx.type == VAL_INT) {
-                if (idx.i >= 0 && (size_t)idx.i < obj.list->size)
-                    return obj.list->items[idx.i];
+                if (idx.i < 0) {
+                    return v_error("list index cannot be negative");
+                }
+                if ((size_t)idx.i >= obj.list->size) {
+                    return v_error("list index out of range");
+                }
+                return obj.list->items[idx.i];
             }
-            return v_null();
+            if (obj.type == VAL_TUPLE && idx.type == VAL_INT) {
+                if (idx.i < 0) {
+                    return v_error("tuple index cannot be negative");
+                }
+                if ((size_t)idx.i >= obj.tuple->size) {
+                    return v_error("tuple index out of range");
+                }
+                return obj.tuple->items[idx.i];
+            }
+            if (obj.type == VAL_STRING && idx.type == VAL_INT) {
+                size_t len = strlen(obj.s);
+                if (idx.i < 0) {
+                    return v_error("string index cannot be negative");
+                }
+                if ((size_t)idx.i >= len) {
+                    return v_error("string index out of range");
+                }
+                char buf[2] = {obj.s[idx.i], '\0'};
+                return v_str(buf);
+            }
+            return v_error("cannot index non-sequence or with non-integer");
         }
         case A_METHOD: {
             Value obj = eval(a->method.obj, env);
@@ -968,14 +1769,20 @@ Value eval(AST *a, Env *env) {
         case A_BINOP: {
             Value l=eval(a->bin.l,env);
             Value r=eval(a->bin.r,env);
+
+            if (l.type == VAL_ERROR) return l;
+            if (r.type == VAL_ERROR) return r;
+
             if (a->bin.op == 'E') {
                 if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i == r.i);
                 if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b == r.b);
+                if (l.type == VAL_PTR && r.type == VAL_PTR) return v_bool(l.ptr == r.ptr);
                 return v_bool(false);
             }
             if (a->bin.op == 'N') {
                 if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i != r.i);
                 if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b != r.b);
+                if (l.type == VAL_PTR && r.type == VAL_PTR) return v_bool(l.ptr != r.ptr);
                 return v_bool(true);
             }
             if (a->bin.op == '<') {
@@ -1008,29 +1815,24 @@ Value eval(AST *a, Env *env) {
                 if (a->bin.op=='+') return v_double(ld + rd);
                 if (a->bin.op=='-') return v_double(ld - rd);
                 if (a->bin.op=='*') return v_double(ld * rd);
-                if (a->bin.op=='/') return v_double(ld / rd);
-                if (a->bin.op=='^') {
-                    if ((long long)rd == rd) {
-                        long long exp = (long long)rd;
-                        if (exp < 0) return v_double(0);
-                        double result = 1.0;
-                        double base = ld;
-                        while (exp > 0) {
-                            if (exp & 1) result *= base;
-                            base *= base;
-                            exp >>= 1;
-                        }
-                        return v_double(result);
-                    }
-                    return v_double(0);
+                if (a->bin.op=='/') {
+                    if (rd == 0.0) return v_error("division by zero");
+                    return v_double(ld / rd);
                 }
+                if (a->bin.op=='^') return v_double(pow(ld, rd));
             }
             if (l.type==VAL_INT && r.type==VAL_INT) {
                 if (a->bin.op=='+') return v_int(l.i+r.i);
                 if (a->bin.op=='-') return v_int(l.i-r.i);
                 if (a->bin.op=='*') return v_int(l.i*r.i);
-                if (a->bin.op=='/') return v_int(l.i/r.i);
-                if (a->bin.op=='%') return v_int(l.i%r.i);
+                if (a->bin.op=='/') {
+                    if (r.i == 0) return v_error("division by zero");
+                    return v_int(l.i/r.i);
+                }
+                if (a->bin.op=='%') {
+                    if (r.i == 0) return v_error("modulo by zero");
+                    return v_int(l.i%r.i);
+                }
                 if (a->bin.op=='^') {
                     if (r.i < 0) return v_int(0);
                     long long result = 1;
@@ -1054,10 +1856,24 @@ Value eval(AST *a, Env *env) {
                 v.s = s;
                 return v;
             }
-            return v_null();
+            return v_error("invalid operand types for operation");
         }
         case A_CALL: {
             Value f=eval(a->call.fn,env);
+
+            if (a->call.fn->type == A_VAR) {
+                ExternFunc *ext = find_extern(a->call.fn->name);
+                if (ext) {
+                    if (a->call.argc != ext->param_count) {
+                        return v_error("extern function argument count mismatch");
+                    }
+                    Value *vals = xmalloc(sizeof(Value) * a->call.argc);
+                    for (size_t i = 0; i < a->call.argc; i++)
+                        vals[i] = eval(a->call.args[i], env);
+                    return call_extern(ext, vals);
+                }
+            }
+
             if (f.type!=VAL_FUNC) return v_null();
             return call(f.fn,a->call.args,a->call.argc,env);
         }
@@ -1067,6 +1883,7 @@ Value eval(AST *a, Env *env) {
             f->arity=a->lambda.arity;
             f->body=a->lambda.body;
             f->is_builtin=false;
+            f->closure_env=env;
             return v_func(f);
         }
         case A_ASSIGN: {
@@ -1130,6 +1947,7 @@ Function *make_builtin(Value (*fn)(Value*, size_t)) {
     f->is_builtin = true;
     f->builtin = fn;
     f->arity = 0;
+    f->closure_env = NULL;
     return f;
 }
 
@@ -1139,6 +1957,7 @@ void run_repl(void) {
     char line[2048];
     while (1) {
         printf("λ ");
+        fflush(stdout);
         if (!fgets(line,sizeof(line),stdin)) break;
         size_t len = strlen(line);
         if (len > 0 && line[len-1] == '\n') line[len-1] = 0;
@@ -1151,18 +1970,103 @@ void run_repl(void) {
         }
 
         src=line;
+        src_start = line;
+        current_loc.filename = "<stdin>";
+        current_loc.line = 1;
+        current_loc.column = 1;
+        errors_occurred = false;
+
         next_token();
 
         if (tok.type == T_IMPORT) {
             next_token();
             if (tok.type != T_STRING) {
-                printf("Error: import requires a filename string\n");
+                error_at(tok.loc, "import requires a filename string");
                 continue;
             }
             char filename[256];
             strcpy(filename, tok.text);
             next_token();
+            bool saved_import_mode = import_mode;
+            import_mode = true;
             run_file(filename);
+            import_mode = saved_import_mode;
+            continue;
+        }
+
+        if (tok.type == T_LINK) {
+            next_token();
+            if (tok.type != T_STRING) {
+                error_at(tok.loc, "link requires a library path string");
+                continue;
+            }
+            char libpath[256];
+            strcpy(libpath, tok.text);
+            next_token();
+            load_library(libpath);
+            continue;
+        }
+
+        if (tok.type == T_EXTERN) {
+            next_token();
+            if (tok.type != T_IDENT) {
+                error_at(tok.loc, "extern requires function name");
+                continue;
+            }
+            char ccalc_name[256];
+            strcpy(ccalc_name, tok.text);
+            next_token();
+
+            if (tok.type != T_ASSIGN) {
+                error_at(tok.loc, "expected '=' after extern function name");
+                continue;
+            }
+            next_token();
+
+            if (tok.type != T_IDENT) {
+                error_at(tok.loc, "expected C function name");
+                continue;
+            }
+            char c_name[256];
+            strcpy(c_name, tok.text);
+            next_token();
+
+            if (tok.type != T_LP) {
+                error_at(tok.loc, "expected '(' for parameter types");
+                continue;
+            }
+            next_token();
+
+            FFIType param_types[16];
+            size_t param_count = 0;
+
+            while (tok.type == T_IDENT && param_count < 16) {
+                param_types[param_count++] = parse_ffi_type(tok.text);
+                next_token();
+                if (tok.type == T_COMMA) next_token();
+                else break;
+            }
+
+            if (tok.type != T_RP) {
+                error_at(tok.loc, "expected ')' after parameters");
+                continue;
+            }
+            next_token();
+
+            if (tok.type != T_COLON) {
+                error_at(tok.loc, "expected ':' before return type");
+                continue;
+            }
+            next_token();
+
+            if (tok.type != T_IDENT) {
+                error_at(tok.loc, "expected return type");
+                continue;
+            }
+            FFIType return_type = parse_ffi_type(tok.text);
+            next_token();
+
+            register_extern(ccalc_name, c_name, param_types, param_count, return_type);
             continue;
         }
 
@@ -1206,55 +2110,89 @@ void run_repl(void) {
                     if (tok.type == T_ASSIGN) {
                         next_token();
                         AST *body = parse_expr();
-                        AST *lambda = ast_new(A_LAMBDA);
-                        lambda->lambda.params = params;
-                        lambda->lambda.arity = n;
-                        lambda->lambda.body = body;
-                        Value fn = eval(lambda, global_env);
-                        env_set(global_env, name, fn, is_const);
+                        if (!errors_occurred) {
+                            AST *lambda = ast_new(A_LAMBDA);
+                            lambda->lambda.params = params;
+                            lambda->lambda.arity = n;
+                            lambda->lambda.body = body;
+                            Value fn = eval(lambda, global_env);
+                            env_set(global_env, name, fn, is_const);
+                        }
                         continue;
                     }
                 }
                 src = line;
+                current_loc.column = 1;
                 next_token();
             }
             else if (tok.type==T_ASSIGN) {
                 next_token();
                 AST *expr=parse_expr();
-                Value v=eval(expr,global_env);
-                env_set(global_env,name,v, is_const);
+                if (!errors_occurred) {
+                    Value v=eval(expr,global_env);
+                    env_set(global_env,name,v, is_const);
+                }
                 continue;
             }
         }
 
         src = line;
+        current_loc.column = 1;
         next_token();
         AST *e=parse_stmt();
+        if (errors_occurred) continue;
+
         Value v=eval(e,global_env);
-        if (v.type==VAL_INT) printf("%lld\n",v.i);
-        else if (v.type==VAL_DOUBLE) printf("%g\n",v.d);
-        else if (v.type==VAL_STRING) printf("\"%s\"\n",v.s);
-        else if (v.type==VAL_BOOL) printf("%s\n", v.b ? "True" : "False");
+
+        const char *color = value_type_color(v);
+        const char *reset = use_colors ? COLOR_RESET : "";
+
+        if (v.type==VAL_INT) printf("%s%lld%s\n", color, v.i, reset);
+        else if (v.type==VAL_DOUBLE) printf("%s%g%s\n", color, v.d, reset);
+        else if (v.type==VAL_STRING) printf("%s\"%s\"%s\n", color, v.s, reset);
+        else if (v.type==VAL_BOOL) printf("%s%s%s\n", color, v.b ? "True" : "False", reset);
+        else if (v.type==VAL_ERROR) printf("%sError: %s%s\n", color, v.s, reset);
+        else if (v.type==VAL_PTR) printf("%s<ptr:%p>%s\n", color, v.ptr, reset);
+        else if (v.type==VAL_TUPLE) {
+            printf("%s(%s", color, reset);
+            for (size_t i = 0; i < v.tuple->size; i++) {
+                if (i > 0) printf(", ");
+                const char *item_color = value_type_color(v.tuple->items[i]);
+                if (v.tuple->items[i].type == VAL_INT)
+                    printf("%s%lld%s", item_color, v.tuple->items[i].i, reset);
+                else if (v.tuple->items[i].type == VAL_DOUBLE)
+                    printf("%s%g%s", item_color, v.tuple->items[i].d, reset);
+                else if (v.tuple->items[i].type == VAL_STRING)
+                    printf("%s\"%s\"%s", item_color, v.tuple->items[i].s, reset);
+                else if (v.tuple->items[i].type == VAL_PTR)
+                    printf("%s<ptr:%p>%s", item_color, v.tuple->items[i].ptr, reset);
+            }
+            printf("%s)%s\n", color, reset);
+        }
         else if (v.type==VAL_LIST) {
-            printf("[");
+            printf("%s[%s", color, reset);
             for (size_t i = 0; i < v.list->size; i++) {
                 if (i > 0) printf(", ");
+                const char *item_color = value_type_color(v.list->items[i]);
                 if (v.list->items[i].type == VAL_INT)
-                    printf("%lld", v.list->items[i].i);
+                    printf("%s%lld%s", item_color, v.list->items[i].i, reset);
                 else if (v.list->items[i].type == VAL_DOUBLE)
-                    printf("%g", v.list->items[i].d);
+                    printf("%s%g%s", item_color, v.list->items[i].d, reset);
                 else if (v.list->items[i].type == VAL_STRING)
-                    printf("\"%s\"", v.list->items[i].s);
+                    printf("%s\"%s\"%s", item_color, v.list->items[i].s, reset);
+                else if (v.list->items[i].type == VAL_PTR)
+                    printf("%s<ptr:%p>%s", item_color, v.list->items[i].ptr, reset);
             }
-            printf("]\n");
+            printf("%s]%s\n", color, reset);
         }
+        fflush(stdout);
     }
 }
 
 void run_file(const char *filename) {
     FILE *f = fopen(filename, "r");
     if (!f) {
-        fprintf(stderr, "Error: Could not open file '%s'\n", filename);
+        fprintf(stderr, "%s:1:1: error: could not open file\n", filename);
         return;
     }
     fseek(f, 0, SEEK_END);
@@ -1267,19 +2205,118 @@ void run_file(const char *filename) {
     fclose(f);
 
     src = content;
+    src_start = content;
+    current_loc.filename = xstrdup(filename);
+    current_loc.line = 1;
+    current_loc.column = 1;
+    errors_occurred = false;
+
     next_token();
 
     while (tok.type != T_EOF) {
+        if (tok.type == T_ERROR) {
+            next_token();
+            continue;
+        }
+
         if (tok.type == T_IMPORT) {
             next_token();
             if (tok.type != T_STRING) {
-                fprintf(stderr, "Error: import requires a filename string\n");
-                break;
+                error_at(tok.loc, "import requires a filename string");
+                next_token();
+                continue;
             }
             char subfile[256];
             strcpy(subfile, tok.text);
             next_token();
+            bool saved_import_mode = import_mode;
+            import_mode = true;
             run_file(subfile);
+            import_mode = saved_import_mode;
+            continue;
+        }
+
+        if (tok.type == T_LINK) {
+            next_token();
+            if (tok.type != T_STRING) {
+                error_at(tok.loc, "link requires a library path string");
+                next_token();
+                continue;
+            }
+            char libpath[256];
+            strcpy(libpath, tok.text);
+            next_token();
+            load_library(libpath);
+            continue;
+        }
+
+        if (tok.type == T_EXTERN) {
+            next_token();
+            if (tok.type != T_IDENT) {
+                error_at(tok.loc, "extern requires function name");
+                next_token();
+                continue;
+            }
+            char ccalc_name[256];
+            strcpy(ccalc_name, tok.text);
+            next_token();
+
+            if (tok.type != T_ASSIGN) {
+                error_at(tok.loc, "expected '=' after extern function name");
+                next_token();
+                continue;
+            }
+            next_token();
+
+            if (tok.type != T_IDENT) {
+                error_at(tok.loc, "expected C function name");
+                next_token();
+                continue;
+            }
+            char c_name[256];
+            strcpy(c_name, tok.text);
+            next_token();
+
+            if (tok.type != T_LP) {
+                error_at(tok.loc, "expected '(' for parameter types");
+                next_token();
+                continue;
+            }
+            next_token();
+
+            FFIType param_types[16];
+            size_t param_count = 0;
+
+            while (tok.type == T_IDENT && param_count < 16) {
+                param_types[param_count++] = parse_ffi_type(tok.text);
+                next_token();
+                if (tok.type == T_COMMA) next_token();
+                else break;
+            }
+
+            if (tok.type != T_RP) {
+                error_at(tok.loc, "expected ')' after parameters");
+                next_token();
+                continue;
+            }
+            next_token();
+
+            if (tok.type != T_COLON) {
+                error_at(tok.loc, "expected ':' before return type");
+                next_token();
+                continue;
+            }
+            next_token();
+
+            if (tok.type != T_IDENT) {
+                error_at(tok.loc, "expected return type");
+                next_token();
+                continue;
+            }
+            FFIType return_type = parse_ffi_type(tok.text);
+            next_token();
+
+            register_extern(ccalc_name, c_name, param_types, param_count, return_type);
             continue;
         }
 
@@ -1290,13 +2327,23 @@ void run_file(const char *filename) {
         }
 
         AST *stmt = parse_stmt();
+        if (errors_occurred) {
+            errors_occurred = false;
+            while (tok.type != T_SEMI && tok.type != T_EOF) {
+                next_token();
+            }
+            if (tok.type == T_SEMI) next_token();
+            continue;
+        }
 
         if (stmt->type == A_VAR && tok.type == T_ASSIGN) {
             char *name = stmt->name;
             next_token();
             AST *expr = parse_expr();
-            Value v = eval(expr, global_env);
-            env_set(global_env, name, v, is_const);
+            if (!errors_occurred) {
+                Value v = eval(expr, global_env);
+                env_set(global_env, name, v, is_const);
+            }
         }
         else if (stmt->type == A_CALL && stmt->call.fn->type == A_VAR && tok.type == T_ASSIGN) {
             char *name = stmt->call.fn->name;
@@ -1304,49 +2351,86 @@ void run_file(const char *filename) {
             size_t argc = stmt->call.argc;
 
             char **params = xmalloc(sizeof(char*) * argc);
+            bool all_idents = true;
             for (size_t i = 0; i < argc; i++) {
                 if (args[i]->type == A_VAR) {
                     params[i] = args[i]->name;
                 } else {
-                    fprintf(stderr, "Error: Function parameters must be identifiers\n");
-                    goto skip_stmt;
+                    error_at(args[i]->loc, "function parameters must be identifiers");
+                    all_idents = false;
+                    break;
                 }
             }
 
-            next_token();
-            AST *body = parse_expr();
-            AST *lambda = ast_new(A_LAMBDA);
-            lambda->lambda.params = params;
-            lambda->lambda.arity = argc;
-            lambda->lambda.body = body;
-            Value fn = eval(lambda, global_env);
-            env_set(global_env, name, fn, is_const);
+            if (all_idents) {
+                next_token();
+                AST *body = parse_expr();
+                if (!errors_occurred) {
+                    AST *lambda = ast_new(A_LAMBDA);
+                    lambda->lambda.params = params;
+                    lambda->lambda.arity = argc;
+                    lambda->lambda.body = body;
+                    Value fn = eval(lambda, global_env);
+                    env_set(global_env, name, fn, is_const);
+                }
+            }
         }
         else {
-            eval(stmt, global_env);
+            if (!import_mode && !errors_occurred) {
+                eval(stmt, global_env);
+            }
         }
 
-        skip_stmt:;
+        if (tok.type == T_SEMI) {
+            next_token();
+        }
     }
 }
 
 int main(int argc, char **argv) {
     global_arena = arena_new(65536);
     global_env = env_new();
+
+    int file_arg = 0;
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--color")) {
+            use_colors = true;
+        } else if (!strcmp(argv[i], "--help")) {
+            printf("Usage: %s [options] [file]\n", argv[0]);
+            printf("Options:\n");
+            printf("  --color    Enable colored output\n");
+            printf("  --help     Show this help message\n");
+            return 0;
+        } else {
+            file_arg = i;
+        }
+    }
+
     env_set(global_env, "print", v_func(make_builtin(builtin_print)), true);
+    env_set(global_env, "type", v_func(make_builtin(builtin_type)), true);
     env_set(global_env, "len", v_func(make_builtin(builtin_len)), true);
     env_set(global_env, "range", v_func(make_builtin(builtin_range)), true);
+    env_set(global_env, "tuple", v_func(make_builtin(builtin_tuple)), true);
     env_set(global_env, "help", v_func(make_builtin(builtin_help)), true);
     env_set(global_env, "assert", v_func(make_builtin(builtin_assert)), true);
     env_set(global_env, "test", v_func(make_builtin(builtin_test)), true);
 
-    if (argc > 1) {
-        run_file(argv[1]);
+    env_set(global_env, "int", v_func(make_builtin(builtin_int)), true);
+    env_set(global_env, "double", v_func(make_builtin(builtin_double)), true);
+    env_set(global_env, "str", v_func(make_builtin(builtin_str)), true);
+    env_set(global_env, "bool", v_func(make_builtin(builtin_bool)), true);
+    env_set(global_env, "is_error", v_func(make_builtin(builtin_is_error)), true);
+    env_set(global_env, "is_null", v_func(make_builtin(builtin_is_null)), true);
+    env_set(global_env, "ptr_to_int", v_func(make_builtin(builtin_ptr_to_int)), true);
+    env_set(global_env, "int_to_ptr", v_func(make_builtin(builtin_int_to_ptr)), true);
+
+    if (file_arg > 0) {
+        run_file(argv[file_arg]);
     } else {
-        printf("λ-calculus REPL with Composition\n");
-        printf("Type 'help()' for syntax\n\n");
+        printf("λ-calculus REPL with FFI, Closures, and Tuples\n");
+        printf("Type 'help()' for syntax or 'quit' to exit\n\n");
         run_repl();
     }
     arena_free(global_arena);
-    return 0;
+    return errors_occurred ? 1 : 0;
 }
