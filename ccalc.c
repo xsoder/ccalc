@@ -5,17 +5,60 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-static void *xmalloc(size_t n) {
-    void *p = malloc(n);
-    if (!p) { perror("malloc"); exit(1); }
-    return p;
+typedef struct ArenaBlock {
+    struct ArenaBlock *next;
+    size_t capacity;
+    size_t used;
+    char data[];
+} ArenaBlock;
+
+typedef struct {
+    ArenaBlock *blocks;
+    size_t block_size;
+} Arena;
+
+Arena *arena_new(size_t block_size) {
+    Arena *a = malloc(sizeof(Arena));
+    a->blocks = NULL;
+    a->block_size = block_size;
+    return a;
 }
-static char *xstrdup(const char *s) {
+
+void *arena_alloc(Arena *arena, size_t size) {
+    if (!arena->blocks || arena->blocks->used + size > arena->blocks->capacity) {
+        size_t bs = arena->block_size > size ? arena->block_size : size * 2;
+        ArenaBlock *b = malloc(sizeof(ArenaBlock) + bs);
+        b->next = arena->blocks;
+        b->capacity = bs;
+        b->used = 0;
+        arena->blocks = b;
+    }
+    void *ptr = arena->blocks->data + arena->blocks->used;
+    arena->blocks->used += size;
+    return ptr;
+}
+
+char *arena_strdup(Arena *arena, const char *s) {
     size_t n = strlen(s) + 1;
-    char *p = xmalloc(n);
+    char *p = arena_alloc(arena, n);
     memcpy(p, s, n);
     return p;
 }
+
+void arena_free(Arena *arena) {
+    ArenaBlock *b = arena->blocks;
+    while (b) {
+        ArenaBlock *next = b->next;
+        free(b);
+        b = next;
+    }
+    free(arena);
+}
+
+Arena *global_arena;
+
+#define xmalloc(sz) arena_alloc(global_arena, sz)
+#define xstrdup(s) arena_strdup(global_arena, s)
 
 typedef struct Env Env;
 typedef struct AST AST;
@@ -83,8 +126,11 @@ Value v_list(void) {
 
 void list_append(List *l, Value v) {
     if (l->size >= l->capacity) {
-        l->capacity *= 2;
-        l->items = realloc(l->items, sizeof(Value) * l->capacity);
+        size_t new_capacity = l->capacity * 2;
+        Value *new_items = xmalloc(sizeof(Value) * new_capacity);
+        memcpy(new_items, l->items, sizeof(Value) * l->size);
+        l->items = new_items;
+        l->capacity = new_capacity;
     }
     l->items[l->size++] = v;
 }
@@ -332,7 +378,6 @@ AST *parse_block(void) {
 
     while (tok.type != T_RC && tok.type != T_EOF) {
         stmts[n++] = parse_stmt();
-        // Consume optional semicolon between statements
         if (tok.type == T_SEMI) {
             next_token();
         }
@@ -356,12 +401,11 @@ AST *parse_primary(void) {
     if (tok.type == T_LC)
         return parse_block();
 
-    // List literal support: [1, 2, 3]
     if (tok.type == T_LB) {
         next_token();
         AST **items = xmalloc(sizeof(AST*) * 64);
         size_t n = 0;
-        
+
         if (tok.type != T_RB) {
             while (1) {
                 items[n++] = parse_expr();
@@ -372,13 +416,13 @@ AST *parse_primary(void) {
                 }
             }
         }
-        
+
         if (tok.type != T_RB) {
             printf("Expected ]\n");
             exit(1);
         }
         next_token();
-        
+
         AST *list = ast_new(A_LIST);
         list->list.items = items;
         list->list.count = n;
@@ -700,15 +744,50 @@ Value builtin_assert(Value *args, size_t argc) {
         exit(1);
     }
 
-    if (!value_is_truthy(args[0])) {
-        if (argc == 2 && args[1].type == VAL_STRING) {
-            fprintf(stderr, "Assertion failed: %s\n", args[1].s);
-        } else {
+    if (argc == 1) {
+        if (!value_is_truthy(args[0])) {
             fprintf(stderr, "Assertion failed\n");
+            return v_int(1);
         }
+    } else {
+        bool equal = false;
+        if (args[0].type == VAL_INT && args[1].type == VAL_INT)
+            equal = (args[0].i == args[1].i);
+        else if (args[0].type == VAL_DOUBLE && args[1].type == VAL_DOUBLE)
+            equal = (args[0].d == args[1].d);
+        else if (args[0].type == VAL_BOOL && args[1].type == VAL_BOOL)
+            equal = (args[0].b == args[1].b);
+        else if (args[0].type == VAL_STRING && args[1].type == VAL_STRING)
+            equal = (strcmp(args[0].s, args[1].s) == 0);
+        if (!equal) {
+            fprintf(stderr, "Assertion failed\n");
+            return v_int(1);
+        }
+    }
+    return v_int(0);
+}
+
+Value builtin_test(Value *args, size_t argc) {
+    if (argc != 2) {
+        fprintf(stderr, "test() takes 2 arguments\n");
         exit(1);
     }
-    return v_null();
+
+    bool equal = false;
+    if (args[0].type == VAL_INT && args[1].type == VAL_INT)
+        equal = (args[0].i == args[1].i);
+    else if (args[0].type == VAL_DOUBLE && args[1].type == VAL_DOUBLE)
+        equal = (args[0].d == args[1].d);
+    else if (args[0].type == VAL_BOOL && args[1].type == VAL_BOOL)
+        equal = (args[0].b == args[1].b);
+    else if (args[0].type == VAL_STRING && args[1].type == VAL_STRING)
+        equal = (strcmp(args[0].s, args[1].s) == 0);
+     if (equal) {
+        printf("Ok\n");
+    } else {
+        printf("Fail\n");
+    }
+    return v_bool(equal);
 }
 
 Value builtin_len(Value *args, size_t argc) {
@@ -779,7 +858,6 @@ Value call(Function *fn, AST **args, size_t argc, Env *caller) {
         for (size_t i = 0; i < argc; i++)
             vals[i] = eval(args[i], caller);
         Value result = fn->builtin(vals, argc);
-        free(vals);
         return result;
     }
 
@@ -885,7 +963,6 @@ Value eval(AST *a, Env *env) {
                     args[i] = eval(a->method.args[i], env);
             }
             Value result = call_method(obj, a->method.method, args, a->method.argc);
-            if (args) free(args);
             return result;
         }
         case A_BINOP: {
@@ -1183,7 +1260,7 @@ void run_file(const char *filename) {
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
-    
+
     char *content = xmalloc(fsize + 1);
     size_t bytes_read = fread(content, 1, fsize, f);
     content[bytes_read] = 0;
@@ -1213,7 +1290,7 @@ void run_file(const char *filename) {
         }
 
         AST *stmt = parse_stmt();
-        
+
         if (stmt->type == A_VAR && tok.type == T_ASSIGN) {
             char *name = stmt->name;
             next_token();
@@ -1225,18 +1302,17 @@ void run_file(const char *filename) {
             char *name = stmt->call.fn->name;
             AST **args = stmt->call.args;
             size_t argc = stmt->call.argc;
-            
+
             char **params = xmalloc(sizeof(char*) * argc);
             for (size_t i = 0; i < argc; i++) {
                 if (args[i]->type == A_VAR) {
                     params[i] = args[i]->name;
                 } else {
                     fprintf(stderr, "Error: Function parameters must be identifiers\n");
-                    free(params);
                     goto skip_stmt;
                 }
             }
-            
+
             next_token();
             AST *body = parse_expr();
             AST *lambda = ast_new(A_LAMBDA);
@@ -1245,25 +1321,24 @@ void run_file(const char *filename) {
             lambda->lambda.body = body;
             Value fn = eval(lambda, global_env);
             env_set(global_env, name, fn, is_const);
-            free(params);
         }
         else {
             eval(stmt, global_env);
         }
-        
+
         skip_stmt:;
     }
-    
-    free(content);
 }
 
 int main(int argc, char **argv) {
+    global_arena = arena_new(65536);
     global_env = env_new();
     env_set(global_env, "print", v_func(make_builtin(builtin_print)), true);
     env_set(global_env, "len", v_func(make_builtin(builtin_len)), true);
     env_set(global_env, "range", v_func(make_builtin(builtin_range)), true);
     env_set(global_env, "help", v_func(make_builtin(builtin_help)), true);
     env_set(global_env, "assert", v_func(make_builtin(builtin_assert)), true);
+    env_set(global_env, "test", v_func(make_builtin(builtin_test)), true);
 
     if (argc > 1) {
         run_file(argv[1]);
@@ -1272,5 +1347,6 @@ int main(int argc, char **argv) {
         printf("Type 'help()' for syntax\n\n");
         run_repl();
     }
+    arena_free(global_arena);
     return 0;
 }
