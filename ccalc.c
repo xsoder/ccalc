@@ -26,6 +26,37 @@ bool errors_occurred = false;
 bool import_mode = false;
 
 typedef struct {
+    char **files;
+    size_t count;
+    size_t capacity;
+} ImportTracker;
+
+ImportTracker import_tracker = {NULL, 0, 0};
+
+void init_import_tracker(void) {
+    import_tracker.capacity = 16;
+    import_tracker.count = 0;
+    import_tracker.files = malloc(sizeof(char*) * import_tracker.capacity);
+}
+
+bool is_file_imported(const char *filename) {
+    for (size_t i = 0; i < import_tracker.count; i++) {
+        if (strcmp(import_tracker.files[i], filename) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void mark_file_imported(const char *filename) {
+    if (import_tracker.count >= import_tracker.capacity) {
+        import_tracker.capacity *= 2;
+        import_tracker.files = realloc(import_tracker.files, sizeof(char*) * import_tracker.capacity);
+    }
+    import_tracker.files[import_tracker.count++] = strdup(filename);
+}
+
+typedef struct {
     const char *filename;
     int line;
     int column;
@@ -1521,7 +1552,7 @@ Value call_extern(ExternFunc *ext, Value *args) {
                 if (arg.type == VAL_DOUBLE) dval = arg.d;
                 else if (arg.type == VAL_INT) dval = (double)arg.i;
                 else return v_error("invalid argument type for FFI double parameter");
-                
+
                 if (ext->param_types[i] == FFI_FLOAT) {
                     float fval = (float)dval;
                     memcpy(&params[i], &fval, sizeof(float));
@@ -2189,6 +2220,52 @@ void run_repl(void) {
     }
 }
 
+void run_file(const char *filename);
+
+char* resolve_import_path(const char *import_name, const char *current_file) {
+    static char resolved[512];
+
+    if (import_name[0] == '/') {
+        strcpy(resolved, import_name);
+        FILE *f = fopen(resolved, "r");
+        if (f) {
+            fclose(f);
+            return resolved;
+        }
+    }
+
+    if (current_file && strchr(current_file, '/')) {
+        const char *last_slash = strrchr(current_file, '/');
+        size_t dir_len = last_slash - current_file + 1;
+        strncpy(resolved, current_file, dir_len);
+        resolved[dir_len] = '\0';
+        strcat(resolved, import_name);
+
+        FILE *f = fopen(resolved, "r");
+        if (f) {
+            fclose(f);
+            return resolved;
+        }
+    }
+
+    strcpy(resolved, import_name);
+    FILE *f = fopen(resolved, "r");
+    if (f) {
+        fclose(f);
+        return resolved;
+    }
+
+    strcpy(resolved, "stdlib/");
+    strcat(resolved, import_name);
+    f = fopen(resolved, "r");
+    if (f) {
+        fclose(f);
+        return resolved;
+    }
+
+    return NULL;
+}
+
 void run_file(const char *filename) {
     FILE *f = fopen(filename, "r");
     if (!f) {
@@ -2226,13 +2303,39 @@ void run_file(const char *filename) {
                 next_token();
                 continue;
             }
-            char subfile[256];
-            strcpy(subfile, tok.text);
+
+            const char *import_name = tok.text;
+            char *resolved_path = resolve_import_path(import_name, current_loc.filename);
+
+            if (!resolved_path) {
+                error_at(tok.loc, "could not find import file: %s", import_name);
+                next_token();
+                continue;
+            }
+
+            if (is_file_imported(resolved_path)) {
+                next_token();
+                continue;
+            }
+
+            mark_file_imported(resolved_path);
             next_token();
+
+            const char *saved_src = src;
+            const char *saved_src_start = src_start;
+            Token saved_tok = tok;
+            SourceLoc saved_loc = current_loc;
+
             bool saved_import_mode = import_mode;
             import_mode = true;
-            run_file(subfile);
+            run_file(resolved_path);
             import_mode = saved_import_mode;
+
+            src = saved_src;
+            src_start = saved_src_start;
+            tok = saved_tok;
+            current_loc = saved_loc;
+
             continue;
         }
 
@@ -2390,6 +2493,7 @@ void run_file(const char *filename) {
 int main(int argc, char **argv) {
     global_arena = arena_new(65536);
     global_env = env_new();
+    init_import_tracker();
 
     int file_arg = 0;
     for (int i = 1; i < argc; i++) {
