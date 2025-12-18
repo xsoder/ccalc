@@ -1,0 +1,19 @@
+fib_rec(x) = if x <= 1: x else: fib_rec(x - 1) + fib_rec(x - 2)
+
+print_fib_helper(n, index) =
+    if index >= n: 0
+    else: if index == 0: { print(fib_rec(index)); print_fib_helper(n, 1) }
+         else: { print(fib_rec(index)); print_fib_helper(n, index + 1) }
+
+print_fib(n) = print_fib_helper(n, 0)
+
+fib_while(x) = {
+    a = 0
+    b = 1
+    while a < x {
+        print(a)
+        c = a + b
+        b = a
+        a = c
+    }
+}

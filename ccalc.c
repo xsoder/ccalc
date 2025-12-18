@@ -638,7 +638,18 @@ AST *parse_block(void) {
 
     while (tok.type != T_RC && tok.type != T_EOF) {
         AST *stmt = parse_stmt();
+
+        if (stmt && stmt->type == A_VAR && tok.type == T_ASSIGN) {
+            next_token();
+            AST *value = parse_expr();
+            AST *assign = ast_new(A_ASSIGN);
+            assign->assign.name = stmt->name;
+            assign->assign.value = value;
+            stmt = assign;
+        }
+
         if (stmt) stmts[n++] = stmt;
+
         if (tok.type == T_SEMI) {
             next_token();
         }
