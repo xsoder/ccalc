@@ -1158,6 +1158,23 @@ Value builtin_type(Value *args, size_t argc) {
     return v_str(value_type_name(args[0]));
 }
 
+Value builtin_exit(Value *args, size_t argc) {
+    if (argc > 1) {
+        fprintf(stderr, "exit() takes 1 arguments\n");
+        return v_int(1);
+    }
+
+    if (argc == 1) {
+        if (args[0].type == VAL_INT) exit(args[0].i);
+        else{
+            fprintf(stderr, "exit() expecits int \n");
+            return v_int(1);
+        }
+    }
+    return v_int(0);
+}
+
+
 Value builtin_assert(Value *args, size_t argc) {
     if (argc < 1 || argc > 2) {
         fprintf(stderr, "assert() takes 1 or 2 arguments\n");
@@ -1167,7 +1184,7 @@ Value builtin_assert(Value *args, size_t argc) {
     if (argc == 1) {
         if (!value_is_truthy(args[0])) {
             fprintf(stderr, "Assertion failed\n");
-            return v_int(1);
+            exit(1);
         }
     } else {
         bool equal = false;
@@ -1181,7 +1198,7 @@ Value builtin_assert(Value *args, size_t argc) {
             equal = (strcmp(args[0].s, args[1].s) == 0);
         if (!equal) {
             fprintf(stderr, "Assertion failed\n");
-            return v_int(1);
+            exit(1);
         }
     }
     return v_int(0);
@@ -1393,6 +1410,7 @@ Value builtin_help(Value *args, size_t argc) {
     printf("print(...)     - Print values\n");
     printf("type(x)        - Get type of value\n");
     printf("assert(...)    - Asserts two expressions\n");
+    printf("exit(...)         - Exits with exit code\n");
     printf("len(obj)       - Get length\n");
     printf("range(...)     - Create range list\n");
     printf("tuple(...)     - Create tuple\n");
@@ -1819,12 +1837,14 @@ Value eval(AST *a, Env *env) {
                 if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i == r.i);
                 if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b == r.b);
                 if (l.type == VAL_PTR && r.type == VAL_PTR) return v_bool(l.ptr == r.ptr);
+                if (l.type == VAL_STRING && r.type == VAL_STRING) return v_bool(strcmp(l.s, r.s) == 0);
                 return v_bool(false);
             }
             if (a->bin.op == 'N') {
                 if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i != r.i);
                 if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b != r.b);
                 if (l.type == VAL_PTR && r.type == VAL_PTR) return v_bool(l.ptr != r.ptr);
+                if (l.type == VAL_STRING && r.type == VAL_STRING) return v_bool(strcmp(l.s, r.s) != 0);
                 return v_bool(true);
             }
             if (a->bin.op == '<') {
@@ -2528,6 +2548,7 @@ int main(int argc, char **argv) {
     env_set(global_env, "tuple", v_func(make_builtin(builtin_tuple)), true);
     env_set(global_env, "help", v_func(make_builtin(builtin_help)), true);
     env_set(global_env, "assert", v_func(make_builtin(builtin_assert)), true);
+    env_set(global_env, "exit", v_func(make_builtin(builtin_exit)), true);
     env_set(global_env, "test", v_func(make_builtin(builtin_test)), true);
 
     env_set(global_env, "int", v_func(make_builtin(builtin_int)), true);
