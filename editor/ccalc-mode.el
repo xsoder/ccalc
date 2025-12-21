@@ -82,7 +82,7 @@
     "return" "break" "continue" "True" "False"))
 
 (defconst ccalc-builtins
-  '("print" "len" "range" "help" "type" "assert" "test"))
+  '("print" "len" "range" "help" "type" "assert" "test" "link" "extern"))
 
 (defconst ccalc-constants
   '("None"))

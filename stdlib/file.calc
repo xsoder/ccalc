@@ -1,0 +1,7 @@
+link "/usr/lib/libc.so.6"
+
+extern fopen    = fopen(string, string): ptr
+extern fgets    = fgets(string, int, ptr): string
+extern fprintf  = fprintf(ptr, string, any): int
+extern fputc    = fputc(int , ptr): int
+extern fclose   = fclose(ptr): void
