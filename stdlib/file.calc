@@ -1,7 +1,15 @@
 link "/usr/lib/libc.so.6"
 
-extern fopen    = fopen(string, string): ptr
-extern fgets    = fgets(string, int, ptr): string
+extern fopen = fopen(string, string): ptr
+extern fputs = fputs(string, ptr): int
+extern fputc = fputc(int, ptr): int
 extern fprintf  = fprintf(ptr, string, any): int
-extern fputc    = fputc(int , ptr): int
-extern fclose   = fclose(ptr): void
+extern sprintf = sprintf(ptr, string, any): int
+extern fclose = fclose(ptr): void
+extern malloc = malloc(int): ptr
+
+file_create(name) = fopen(name, "wb")
+file_read(name) = fopen(name, "r")
+file_write_str(ptr, str) = fputs(str, ptr)
+file_write_char(ptr, ch) = fputc(ch, ptr)
+file_close(ptr) = fclose(ptr)
