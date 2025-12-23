@@ -1,2 +1,16 @@
+# Note that new line is not necessary
 x = 10
+print("\n----------------")
+print("Hello world")
 print(x)
+print("\n----------------")
+
+f(x) = x * x
+print("\n----------------")
+print(f)
+print("\n----------------")
+
+print("\n----------------")
+print(f(2))
+print(f(3)*f(4))
+print("\n----------------")

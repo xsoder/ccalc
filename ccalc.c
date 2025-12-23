@@ -1,4 +1,4 @@
-//   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling, and Tuples
+//   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling, Tuples, and Any Type
 //   Build: cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm
 
 #define _POSIX_C_SOURCE 200809L
@@ -139,7 +139,7 @@ void warning_at(SourceLoc loc, const char *fmt, ...) {
 }
 
 typedef enum {
-    FFI_INT, FFI_DOUBLE, FFI_STRING, FFI_VOID, FFI_PTR, FFI_LONG, FFI_FLOAT, FFI_CHAR, FFI_BOOL
+    FFI_INT, FFI_DOUBLE, FFI_STRING, FFI_VOID, FFI_PTR, FFI_LONG, FFI_FLOAT, FFI_CHAR, FFI_BOOL, FFI_ANY
 } FFIType;
 
 typedef struct {
@@ -169,7 +169,7 @@ typedef struct AST AST;
 typedef struct Value Value;
 
 typedef enum {
-    VAL_INT, VAL_DOUBLE, VAL_STRING, VAL_FUNC, VAL_LIST, VAL_NULL, VAL_BOOL, VAL_ERROR, VAL_TUPLE, VAL_PTR
+    VAL_INT, VAL_DOUBLE, VAL_STRING, VAL_FUNC, VAL_LIST, VAL_NULL, VAL_BOOL, VAL_ERROR, VAL_TUPLE, VAL_PTR, VAL_ANY
 } ValueType;
 
 typedef enum {
@@ -211,6 +211,7 @@ struct Value {
         bool b;
         Tuple *tuple;
         void *ptr;
+        Value *any_val;
     };
 };
 
@@ -222,6 +223,15 @@ Value v_bool(bool b) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_BOOL; v.b=b
 Value v_func(Function*f) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_FUNC; v.fn=f; return v; }
 Value v_error(const char*msg) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_ERROR; v.s=xstrdup(msg); return v; }
 Value v_ptr(void *p) { Value v; memset(&v, 0, sizeof(v)); v.type=VAL_PTR; v.ptr=p; return v; }
+
+Value v_any(Value inner) {
+    Value v;
+    memset(&v, 0, sizeof(v));
+    v.type = VAL_ANY;
+    v.any_val = xmalloc(sizeof(Value));
+    *v.any_val = inner;
+    return v;
+}
 
 Value v_return(Value v) { v.cf = CF_RETURN; return v;}
 Value v_break(void) { Value v = v_null(); v.cf = CF_BREAK; return v;}
@@ -261,6 +271,9 @@ void list_append(List *l, Value v) {
 }
 
 bool value_is_truthy(Value v) {
+    if (v.type == VAL_ANY && v.any_val) {
+        return value_is_truthy(*v.any_val);
+    }
     switch (v.type) {
         case VAL_NULL: return false;
         case VAL_ERROR: return false;
@@ -272,11 +285,15 @@ bool value_is_truthy(Value v) {
         case VAL_TUPLE: return v.tuple->size > 0;
         case VAL_FUNC: return true;
         case VAL_PTR: return v.ptr != NULL;
+        case VAL_ANY: return false;
     }
     return false;
 }
 
 double value_to_double(Value v) {
+    if (v.type == VAL_ANY && v.any_val) {
+        return value_to_double(*v.any_val);
+    }
     if (v.type == VAL_INT) return (double)v.i;
     if (v.type == VAL_DOUBLE) return v.d;
     return 0.0;
@@ -294,6 +311,7 @@ const char* value_type_name(Value v) {
         case VAL_ERROR: return "error";
         case VAL_TUPLE: return "tuple";
         case VAL_PTR: return "ptr";
+        case VAL_ANY: return "any";
     }
     return "unknown";
 }
@@ -311,6 +329,7 @@ const char* value_type_color(Value v) {
         case VAL_ERROR: return COLOR_RED;
         case VAL_TUPLE: return COLOR_MAGENTA;
         case VAL_PTR: return COLOR_WHITE;
+        case VAL_ANY: return COLOR_YELLOW;
     }
     return COLOR_RESET;
 }
@@ -1068,9 +1087,18 @@ AST *parse_stmt(void) {
     return parse_expr();
 }
 
+void print_value(Value v);
+
 void print_value(Value v) {
     const char *color = value_type_color(v);
     const char *reset = use_colors ? COLOR_RESET : "";
+
+    if (v.type == VAL_ANY && v.any_val) {
+        printf("%s<any:", color);
+        print_value(*v.any_val);
+        printf(">%s", reset);
+        return;
+    }
 
     switch (v.type) {
         case VAL_INT:
@@ -1096,6 +1124,9 @@ void print_value(Value v) {
             break;
         case VAL_PTR:
             printf("%s<ptr:%p>%s", color, v.ptr, reset);
+            break;
+        case VAL_ANY:
+            printf("%s<any:null>%s", color, reset);
             break;
         case VAL_LIST:
             printf("%s[%s", color, reset);
@@ -1158,6 +1189,23 @@ Value builtin_type(Value *args, size_t argc) {
     return v_str(value_type_name(args[0]));
 }
 
+Value builtin_exit(Value *args, size_t argc) {
+    if (argc > 1) {
+        fprintf(stderr, "exit() takes 1 arguments\n");
+        return v_int(1);
+    }
+
+    if (argc == 1) {
+        if (args[0].type == VAL_INT) exit(args[0].i);
+        else{
+            fprintf(stderr, "exit() expecits int \n");
+            return v_int(1);
+        }
+    }
+    return v_int(0);
+}
+
+
 Value builtin_assert(Value *args, size_t argc) {
     if (argc < 1 || argc > 2) {
         fprintf(stderr, "assert() takes 1 or 2 arguments\n");
@@ -1167,7 +1215,7 @@ Value builtin_assert(Value *args, size_t argc) {
     if (argc == 1) {
         if (!value_is_truthy(args[0])) {
             fprintf(stderr, "Assertion failed\n");
-            return v_int(1);
+            exit(1);
         }
     } else {
         bool equal = false;
@@ -1181,7 +1229,7 @@ Value builtin_assert(Value *args, size_t argc) {
             equal = (strcmp(args[0].s, args[1].s) == 0);
         if (!equal) {
             fprintf(stderr, "Assertion failed\n");
-            return v_int(1);
+            exit(1);
         }
     }
     return v_int(0);
@@ -1254,6 +1302,10 @@ Value builtin_int(Value *args, size_t argc) {
 
     Value arg = args[0];
 
+    if (arg.type == VAL_ANY && arg.any_val) {
+        arg = *arg.any_val;
+    }
+
     switch (arg.type) {
         case VAL_INT:
             return arg;
@@ -1283,6 +1335,10 @@ Value builtin_double(Value *args, size_t argc) {
 
     Value arg = args[0];
 
+    if (arg.type == VAL_ANY && arg.any_val) {
+        arg = *arg.any_val;
+    }
+
     switch (arg.type) {
         case VAL_DOUBLE:
             return arg;
@@ -1309,6 +1365,11 @@ Value builtin_str(Value *args, size_t argc) {
     }
 
     Value arg = args[0];
+
+    if (arg.type == VAL_ANY && arg.any_val) {
+        arg = *arg.any_val;
+    }
+
     char buf[256];
 
     switch (arg.type) {
@@ -1348,7 +1409,12 @@ Value builtin_is_error(Value *args, size_t argc) {
         return v_error("is_error() takes exactly 1 argument");
     }
 
-    return v_bool(args[0].type == VAL_ERROR);
+    Value arg = args[0];
+    if (arg.type == VAL_ANY && arg.any_val) {
+        arg = *arg.any_val;
+    }
+
+    return v_bool(arg.type == VAL_ERROR);
 }
 
 Value builtin_is_null(Value *args, size_t argc) {
@@ -1356,7 +1422,12 @@ Value builtin_is_null(Value *args, size_t argc) {
         return v_error("is_null() takes exactly 1 argument");
     }
 
-    return v_bool(args[0].type == VAL_NULL || (args[0].type == VAL_PTR && args[0].ptr == NULL));
+    Value arg = args[0];
+    if (arg.type == VAL_ANY && arg.any_val) {
+        arg = *arg.any_val;
+    }
+
+    return v_bool(arg.type == VAL_NULL || (arg.type == VAL_PTR && arg.ptr == NULL));
 }
 
 Value builtin_ptr_to_int(Value *args, size_t argc) {
@@ -1364,8 +1435,13 @@ Value builtin_ptr_to_int(Value *args, size_t argc) {
         return v_error("ptr_to_int() takes exactly 1 argument");
     }
 
-    if (args[0].type == VAL_PTR) {
-        return v_int((long long)args[0].ptr);
+    Value arg = args[0];
+    if (arg.type == VAL_ANY && arg.any_val) {
+        arg = *arg.any_val;
+    }
+
+    if (arg.type == VAL_PTR) {
+        return v_int((long long)arg.ptr);
     }
 
     return v_error("ptr_to_int() requires a pointer argument");
@@ -1376,8 +1452,13 @@ Value builtin_int_to_ptr(Value *args, size_t argc) {
         return v_error("int_to_ptr() takes exactly 1 argument");
     }
 
-    if (args[0].type == VAL_INT) {
-        return v_ptr((void*)args[0].i);
+    Value arg = args[0];
+    if (arg.type == VAL_ANY && arg.any_val) {
+        arg = *arg.any_val;
+    }
+
+    if (arg.type == VAL_INT) {
+        return v_ptr((void*)arg.i);
     }
 
     return v_error("int_to_ptr() requires an integer argument");
@@ -1387,15 +1468,24 @@ Value builtin_tuple(Value *args, size_t argc) {
     return v_tuple(args, argc);
 }
 
+Value builtin_any(Value *args, size_t argc) {
+    if (argc != 1) {
+        return v_error("any() takes exactly 1 argument");
+    }
+    return v_any(args[0]);
+}
+
 Value builtin_help(Value *args, size_t argc) {
     (void)args; (void)argc;
     printf("\n=== Built-in Functions ===\n");
     printf("print(...)     - Print values\n");
     printf("type(x)        - Get type of value\n");
     printf("assert(...)    - Asserts two expressions\n");
+    printf("exit(...)         - Exits with exit code\n");
     printf("len(obj)       - Get length\n");
     printf("range(...)     - Create range list\n");
     printf("tuple(...)     - Create tuple\n");
+    printf("any(x)         - Wrap value in any type\n");
     printf("help()         - This message\n");
     printf("\n=== Type Conversion ===\n");
     printf("int(x)         - Convert to integer\n");
@@ -1410,7 +1500,7 @@ Value builtin_help(Value *args, size_t argc) {
     printf("\n=== FFI (Foreign Function Interface) ===\n");
     printf("link \"lib.so\"   - Load C shared library\n");
     printf("extern f = c_func(int, string): int - Declare C function\n");
-    printf("  Supported types: int, double, string, void, ptr, long, float, char, bool\n");
+    printf("  Supported types: int, double, string, void, ptr, long, float, char, bool, any\n");
     printf("\n=== Working with Structs (via FFI) ===\n");
     printf("1. Create C wrapper functions that return/accept pointers\n");
     printf("2. Declare wrappers with 'extern'\n");
@@ -1485,6 +1575,7 @@ FFIType parse_ffi_type(const char *type_name) {
     if (!strcmp(type_name, "float")) return FFI_FLOAT;
     if (!strcmp(type_name, "char")) return FFI_CHAR;
     if (!strcmp(type_name, "bool")) return FFI_BOOL;
+    if (!strcmp(type_name, "any")) return FFI_ANY;
     return FFI_VOID;
 }
 
@@ -1546,7 +1637,22 @@ Value call_extern(ExternFunc *ext, Value *args) {
     for (size_t i = 0; i < ext->param_count && i < 16; i++) {
         Value arg = args[i];
 
+        if (arg.type == VAL_ANY && arg.any_val) {
+            arg = *arg.any_val;
+        }
+
         switch (ext->param_types[i]) {
+            case FFI_ANY:
+                if (arg.type == VAL_INT) params[i] = arg.i;
+                else if (arg.type == VAL_DOUBLE) {
+                    memcpy(&params[i], &arg.d, sizeof(double));
+                }
+                else if (arg.type == VAL_BOOL) params[i] = arg.b ? 1 : 0;
+                else if (arg.type == VAL_STRING) params[i] = (long long)arg.s;
+                else if (arg.type == VAL_PTR) params[i] = (long long)arg.ptr;
+                else params[i] = 0;
+                break;
+
             case FFI_INT:
             case FFI_LONG:
             case FFI_CHAR:
@@ -1634,6 +1740,7 @@ Value call_extern(ExternFunc *ext, Value *args) {
         case FFI_LONG:
         case FFI_CHAR:
         case FFI_BOOL:
+        case FFI_ANY:
             return v_int(result);
         case FFI_DOUBLE:
         case FFI_FLOAT: {
@@ -1689,6 +1796,10 @@ Value call(Function *fn, AST **args, size_t argc, Env *caller) {
 }
 
 Value call_method(Value obj, const char *method, Value *args, size_t argc) {
+    if (obj.type == VAL_ANY && obj.any_val) {
+        return call_method(*obj.any_val, method, args, argc);
+    }
+
     if (obj.type == VAL_INT) {
         if (!strcmp(method, "bin")) {
             char buf[128];
@@ -1766,6 +1877,10 @@ Value eval(AST *a, Env *env) {
             if (obj.type == VAL_ERROR) return obj;
             if (idx.type == VAL_ERROR) return idx;
 
+            if (obj.type == VAL_ANY && obj.any_val) {
+                obj = *obj.any_val;
+            }
+
             if (obj.type == VAL_LIST && idx.type == VAL_INT) {
                 if (idx.i < 0) {
                     return v_error("list index cannot be negative");
@@ -1815,16 +1930,25 @@ Value eval(AST *a, Env *env) {
             if (l.type == VAL_ERROR) return l;
             if (r.type == VAL_ERROR) return r;
 
+            if (l.type == VAL_ANY && l.any_val) {
+                l = *l.any_val;
+            }
+            if (r.type == VAL_ANY && r.any_val) {
+                r = *r.any_val;
+            }
+
             if (a->bin.op == 'E') {
                 if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i == r.i);
                 if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b == r.b);
                 if (l.type == VAL_PTR && r.type == VAL_PTR) return v_bool(l.ptr == r.ptr);
+                if (l.type == VAL_STRING && r.type == VAL_STRING) return v_bool(strcmp(l.s, r.s) == 0);
                 return v_bool(false);
             }
             if (a->bin.op == 'N') {
                 if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i != r.i);
                 if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b != r.b);
                 if (l.type == VAL_PTR && r.type == VAL_PTR) return v_bool(l.ptr != r.ptr);
+                if (l.type == VAL_STRING && r.type == VAL_STRING) return v_bool(strcmp(l.s, r.s) != 0);
                 return v_bool(true);
             }
             if (a->bin.op == '<') {
@@ -2195,6 +2319,12 @@ void run_repl(void) {
         else if (v.type==VAL_BOOL) printf("%s%s%s\n", color, v.b ? "True" : "False", reset);
         else if (v.type==VAL_ERROR) printf("%sError: %s%s\n", color, v.s, reset);
         else if (v.type==VAL_PTR) printf("%s<ptr:%p>%s\n", color, v.ptr, reset);
+        else if (v.type==VAL_ANY) {
+            printf("%s<any:", color);
+            if (v.any_val) print_value(*v.any_val);
+            else printf("null");
+            printf(">%s\n", reset);
+        }
         else if (v.type==VAL_TUPLE) {
             printf("%s(%s", color, reset);
             for (size_t i = 0; i < v.tuple->size; i++) {
@@ -2528,6 +2658,7 @@ int main(int argc, char **argv) {
     env_set(global_env, "tuple", v_func(make_builtin(builtin_tuple)), true);
     env_set(global_env, "help", v_func(make_builtin(builtin_help)), true);
     env_set(global_env, "assert", v_func(make_builtin(builtin_assert)), true);
+    env_set(global_env, "exit", v_func(make_builtin(builtin_exit)), true);
     env_set(global_env, "test", v_func(make_builtin(builtin_test)), true);
 
     env_set(global_env, "int", v_func(make_builtin(builtin_int)), true);
@@ -2538,6 +2669,7 @@ int main(int argc, char **argv) {
     env_set(global_env, "is_null", v_func(make_builtin(builtin_is_null)), true);
     env_set(global_env, "ptr_to_int", v_func(make_builtin(builtin_ptr_to_int)), true);
     env_set(global_env, "int_to_ptr", v_func(make_builtin(builtin_int_to_ptr)), true);
+    env_set(global_env, "any", v_func(make_builtin(builtin_any)), true);
 
     if (file_arg > 0) {
         run_file(argv[file_arg]);
