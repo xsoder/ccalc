@@ -1,0 +1,41 @@
+link "/usr/lib/libc.so.6"
+
+extern fopen = fopen(string, string): ptr
+extern fputs = fputs(string, ptr): int
+extern fprintf = fprintf(ptr, string, any): int
+extern fputc = fputc(int, ptr): int
+extern fclose = fclose(ptr): void
+
+generate_ppm(name) = {
+    fptr = fopen(name, "wb")
+
+    if fptr == None {
+        print("Could not create file")
+        return
+    }
+
+    fputs("P6\n", fptr)
+    fprintf(fptr, "%d ", WIDTH)
+    fprintf(fptr, "%d", HEIGHT)
+    fputs("\n255\n", fptr)
+
+    row = 0
+    while row < HEIGHT {
+        col = 0
+        while col < WIDTH {
+            fputc(255, fptr)
+            fputc(0, fptr)
+            fputc(0, fptr)
+            col = col + 1
+        }
+        row = row + 1
+    }
+
+    fclose(fptr)
+    return
+}
+
+const WIDTH  = 960
+const HEIGHT = 540
+
+generate_ppm("main.ppm")
