@@ -1,0 +1,16 @@
+link "/usr/lib/libc.so.6"
+link "/usr/lib64/ld-linux-x86-64.so.2"
+
+# Refer to this: https://www.man7.org/linux/man-pages/man2/socket.2.html
+extern socket = socket(int, int, int): int
+
+# This is basic operation
+create_connection(conn_type, port) = {
+    match conn_type {
+        "http": socket(AF_UNIX, int, int)
+        "tcp": socket(int, int, int)
+        None : socket(int, int, int)
+    }
+}
+
+err = create_socket("http", 8080)
