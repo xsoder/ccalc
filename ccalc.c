@@ -1,7 +1,6 @@
 //   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling,
 //   Tuples, and Any Type Build:
 //   cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm
-
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
 #include <dlfcn.h>
@@ -396,7 +395,33 @@ bool value_is_truthy(Value v) {
   }
   return false;
 }
-
+bool values_equal(Value a, Value b) {
+  if (a.type != b.type) return false;
+  switch (a.type) {
+    case VAL_INT:
+      return a.i == b.i;
+    case VAL_DOUBLE:
+      return a.d == b.d;
+    case VAL_BOOL:
+      return a.b == b.b;
+    case VAL_STRING:
+      return strcmp(a.s, b.s) == 0;
+    case VAL_NULL:
+      return true;
+    case VAL_PTR:
+      return a.ptr == b.ptr;
+    case VAL_TUPLE:
+      if (a.tuple->size != b.tuple->size) return false;
+      for (size_t i = 0; i < a.tuple->size; i++) {
+        if (!values_equal(a.tuple->items[i], b.tuple->items[i])) return false;
+      }
+      return true;
+    case VAL_ANY:
+      return values_equal(*a.any_val, *b.any_val);
+    default:
+      return false;
+  }
+}
 double value_to_double(Value v) {
   if (v.type == VAL_ANY && v.any_val) {
     return value_to_double(*v.any_val);
@@ -528,6 +553,7 @@ typedef enum {
   T_DOT,
   T_PLUS,
   T_MINUS,
+  T_MATCH,
   T_STAR,
   T_SLASH,
   T_MOD,
@@ -658,6 +684,8 @@ const char* token_name(TokType t) {
       return "'struct'";
     case T_EOF:
       return "end of file";
+    case T_MATCH:
+      return "match";
     case T_ERROR:
       return "error";
   }
@@ -766,6 +794,7 @@ void next_token(void) {
       current_loc.column++;
     }
     *p = 0;
+
     if (!strcmp(tok.text, "lambda"))
       tok.type = T_LAMBDA;
     else if (!strcmp(tok.text, "if"))
@@ -794,6 +823,8 @@ void next_token(void) {
       tok.type = T_EXTERN;
     else if (!strcmp(tok.text, "struct"))
       tok.type = T_STRUCT;
+    else if (!strcmp(tok.text, "match"))
+      tok.type = T_MATCH;
     else
       tok.type = T_IDENT;
     return;
@@ -921,6 +952,7 @@ void next_token(void) {
 
 typedef enum {
   A_INT,
+  A_MATCH,
   A_DOUBLE,
   A_STRING,
   A_VAR,
@@ -1022,6 +1054,12 @@ struct AST {
       size_t count;
     } struct_init;
     struct {
+      AST* value;
+      AST** patterns;
+      AST** bodies;
+      size_t case_count;
+    } match;
+    struct {
       AST* obj;
       char* member;
     } member;
@@ -1053,6 +1091,37 @@ bool expect(TokType expected) {
   return true;
 }
 
+AST* parse_match(void) {
+  next_token();  // skip 'match'
+  AST* obj = parse_expr();
+
+  if (!expect(T_LC)) return obj;
+  next_token();
+
+  AST** patterns = xmalloc(sizeof(AST*) * 32);
+  AST** bodies = xmalloc(sizeof(AST*) * 32);
+  size_t count = 0;
+
+  while (tok.type != T_RC && tok.type != T_EOF) {
+    patterns[count] = parse_expr();
+    if (!expect(T_COLON)) break;
+    next_token();
+    bodies[count] = parse_expr();
+    count++;
+    if (tok.type == T_COMMA) next_token();
+  }
+
+  expect(T_RC);
+  next_token();
+
+  AST* m = ast_new(A_MATCH);
+  m->match.value = obj;
+  m->match.patterns = patterns;
+  m->match.bodies = bodies;
+  m->match.case_count = count;
+  return m;
+}
+
 AST* parse_block(void) {
   if (tok.type != T_LC) {
     error_at(tok.loc, "expected '{' but got %s", token_name(tok.type));
@@ -1066,11 +1135,9 @@ AST* parse_block(void) {
   while (tok.type != T_RC && tok.type != T_EOF) {
     AST* stmt = parse_stmt();
 
-    // Handle assignment (single or unpacking)
     if (stmt && (stmt->type == A_VAR || stmt->type == A_TUPLE) &&
         tok.type == T_ASSIGN) {
       if (stmt->type == A_TUPLE) {
-        // Check validity for unpacking
         for (size_t i = 0; i < stmt->list.count; i++) {
           if (stmt->list.items[i]->type != A_VAR) {
             error_at(stmt->list.items[i]->loc, "cannot unpack to non-variable");
@@ -1080,8 +1147,6 @@ AST* parse_block(void) {
 
       next_token();
       AST* value = parse_expr();
-
-      // Handle comma-separated values on RHS
       if (tok.type == T_COMMA) {
         AST** items = xmalloc(sizeof(AST*) * 64);
         size_t count = 0;
@@ -1221,6 +1286,10 @@ AST* parse_primary(void) {
   AST* a;
 
   if (tok.type == T_LC) return parse_block();
+
+  if (tok.type == T_MATCH) {
+    return parse_match();
+  }
 
   if (tok.type == T_LAMBDA) {
     SourceLoc lambda_loc = tok.loc;
@@ -1366,7 +1435,6 @@ AST* parse_primary(void) {
     char* name = xstrdup(tok.text);
     next_token();
 
-    // Check for Struct Instantiation: Ident { ... }
     if (tok.type == T_LC) {
       next_token();
       AST** values = xmalloc(sizeof(AST*) * 32);
@@ -1662,6 +1730,55 @@ AST* parse_expr(void) {
     a->whileloop.body = body;
     return a;
   }
+  if (tok.type == T_MATCH) {
+    next_token();
+    AST* value = parse_comparison();
+
+    /* Accept either `match value { ... }` or `match value : { ... }` */
+    if (tok.type == T_COLON) {
+      next_token();
+    }
+
+    if (tok.type != T_LC) {
+      error_at(tok.loc, "expected '{' to start match cases");
+      return ast_new(A_INT);
+    }
+    next_token();
+
+    AST** patterns = xmalloc(sizeof(AST*) * 64);
+    AST** bodies = xmalloc(sizeof(AST*) * 64);
+    size_t case_count = 0;
+
+    while (tok.type != T_RC && tok.type != T_EOF) {
+      patterns[case_count] = parse_comparison();
+
+      if (tok.type != T_COLON) {
+        error_at(tok.loc, "expected ':' after match pattern");
+        break;
+      }
+      next_token();
+
+      bodies[case_count] = parse_expr();
+      case_count++;
+
+      if (tok.type == T_COMMA) {
+        next_token();
+      }
+    }
+
+    if (tok.type != T_RC) {
+      error_at(tok.loc, "expected '}' to close match");
+    } else {
+      next_token();
+    }
+
+    AST* match = ast_new(A_MATCH);
+    match->match.value = value;
+    match->match.patterns = patterns;
+    match->match.bodies = bodies;
+    match->match.case_count = case_count;
+    return match;
+  }
 
   return parse_comparison();
 }
@@ -1712,7 +1829,6 @@ AST* parse_stmt(void) {
         next_token();
 
         if (!expect(T_ASSIGN)) {
-          // Error
         }
         next_token();
 
@@ -3111,6 +3227,16 @@ Value eval(AST* a, Env* env) {
       }
       return rhs;
     }
+    case A_MATCH: {
+      Value target = eval(a->match.value, env);
+      for (size_t i = 0; i < a->match.case_count; i++) {
+        Value pattern_val = eval(a->match.patterns[i], env);
+        if (values_equal(target, pattern_val)) {
+          return eval(a->match.bodies[i], env);
+        }
+      }
+      return v_null();
+    }
   }
   return v_null();
 }
@@ -3696,4 +3822,3 @@ int main(int argc, char** argv) {
   arena_free(global_arena);
   return errors_occurred ? 1 : 0;
 }
-
