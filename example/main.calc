@@ -1,0 +1,7 @@
+func() = {
+    100, 200
+}
+
+x, y = func()
+
+print("First return value: % \nSecond return value %", x, y)

@@ -1,3 +1,5 @@
+# Pure functional style fibonacci series
+
 fib_rec(x) = if x <= 1: x else: fib_rec(x - 1) + fib_rec(x - 2)
 
 print_fib_helper(n, index) = {

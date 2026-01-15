@@ -1,0 +1,9 @@
+# This is how we do comments
+x = "Hello world"
+
+# You can directly print anything u need there is no need to specify type.
+print(x)
+
+# We have two string interpolation methods.
+print("%", x)
+print("{x}")
