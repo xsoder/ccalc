@@ -1,6 +1,6 @@
 //   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling,
 //   Tuples, and Any Type Build:
-//   cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm
+//   cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm -DBUILD_DIR=$(pwd)
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
 #include <dlfcn.h>
@@ -2447,9 +2447,6 @@ void load_library(const char* path) {
   loaded_libs[loaded_libs_count].name = strdup(path);
   loaded_libs[loaded_libs_count].handle = handle;
   loaded_libs_count++;
-
-  printf("Loaded library: %s\n", path);
-  fflush(stdout);
 }
 
 void* find_symbol(const char* name) {
@@ -2512,8 +2509,6 @@ void register_extern(const char* ccalc_name, const char* c_name,
 
   env_set(global_env, ccalc_name, v_func(ffi_func), false);
 
-  printf("Registered extern function: %s -> %s\n", ccalc_name, c_name);
-  fflush(stdout);
 }
 
 ExternFunc* find_extern(const char* name) {
@@ -2546,12 +2541,10 @@ Value call_extern(ExternFunc* ext, Value* args) {
           params[i] = arg.i;
         else if (arg.type == VAL_DOUBLE) {
           memcpy(&params[i], &arg.d, sizeof(double));
-        } else if (arg.type == VAL_BOOL)
-          params[i] = arg.b ? 1 : 0;
+        } else if (arg.type == VAL_PTR)
+          params[i] = (long long)arg.ptr;
         else if (arg.type == VAL_STRING)
           params[i] = (long long)arg.s;
-        else if (arg.type == VAL_PTR)
-          params[i] = (long long)arg.ptr;
         else
           params[i] = 0;
         break;
@@ -3251,6 +3244,7 @@ Function* make_builtin(Value (*fn)(Value*, size_t)) {
 }
 
 void run_file(const char* filename);
+char* resolve_import_path(const char* import_name, const char* current_file);
 
 void run_repl(void) {
   char line[2048];
@@ -3509,47 +3503,121 @@ void run_repl(void) {
   }
 }
 
-void run_file(const char* filename);
+/* replace existing resolve_import_path with this (put before run_file()) */
+
+#ifndef STR1
+#define STR1(x) #x
+#define STR(x) STR1(x)
+#endif
+
+static char* build_and_test(const char* a, const char* b) {
+  size_t la = a ? strlen(a) : 0;
+  size_t lb = b ? strlen(b) : 0;
+  size_t need = la + (la && lb ? 1 : 0) + lb + 1;
+  char* buf = malloc(need);
+  if (!buf) return NULL;
+  if (la && lb)
+    snprintf(buf, need, "%s/%s", a, b);
+  else if (la)
+    snprintf(buf, need, "%s", a);
+  else
+    snprintf(buf, need, "%s", b ? b : "");
+  FILE* f = fopen(buf, "r");
+  if (f) {
+    fclose(f);
+    return buf;
+  }
+  free(buf);
+  return NULL;
+}
 
 char* resolve_import_path(const char* import_name, const char* current_file) {
-  static char resolved[512];
+  if (!import_name) return NULL;
 
+#ifdef BUILD_DIR
+  {
+    const char* build_dir = STR(BUILD_DIR);
+    if (build_dir && build_dir[0]) {
+      char* p = build_and_test(build_dir, import_name);
+      if (p) return p;
+
+      size_t rel_len = strlen("stdlib/") + strlen(import_name) + 1;
+      char* rel = malloc(rel_len);
+      if (rel) {
+        snprintf(rel, rel_len, "stdlib/%s", import_name);
+        char* p2 = build_and_test(build_dir, rel);
+        free(rel);
+        if (p2) return p2;
+      }
+    }
+  }
+#endif
   if (import_name[0] == '/') {
-    strcpy(resolved, import_name);
-    FILE* f = fopen(resolved, "r");
-    if (f) {
-      fclose(f);
-      return resolved;
+    char* p = strdup(import_name);
+    if (p) {
+      FILE* f = fopen(p, "r");
+      if (f) {
+        fclose(f);
+        return p;
+      }
+      free(p);
     }
   }
 
   if (current_file && strchr(current_file, '/')) {
     const char* last_slash = strrchr(current_file, '/');
-    size_t dir_len = last_slash - current_file + 1;
-    strncpy(resolved, current_file, dir_len);
-    resolved[dir_len] = '\0';
-    strcat(resolved, import_name);
-
-    FILE* f = fopen(resolved, "r");
-    if (f) {
-      fclose(f);
-      return resolved;
+    size_t dir_len = (size_t)(last_slash - current_file) + 1;
+    char* dir = malloc(dir_len + 1);
+    if (dir) {
+      strncpy(dir, current_file, dir_len);
+      dir[dir_len] = '\0';
+      char* p = build_and_test(dir, import_name);
+      free(dir);
+      if (p) return p;
     }
   }
 
-  strcpy(resolved, import_name);
-  FILE* f = fopen(resolved, "r");
-  if (f) {
-    fclose(f);
-    return resolved;
+#if defined(PATH_MAX)
+  {
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd))) {
+      char* p = build_and_test(cwd, import_name);
+      if (p) return p;
+    }
+  }
+#else
+  {
+    const char* pwd = getenv("PWD");
+    if (pwd) {
+      char* p = build_and_test(pwd, import_name);
+      if (p) return p;
+    }
+  }
+#endif
+  {
+    char* p = strdup(import_name);
+    if (p) {
+      FILE* f = fopen(p, "r");
+      if (f) {
+        fclose(f);
+        return p;
+      }
+      free(p);
+    }
   }
 
-  strcpy(resolved, "stdlib/");
-  strcat(resolved, import_name);
-  f = fopen(resolved, "r");
-  if (f) {
-    fclose(f);
-    return resolved;
+  {
+    size_t rel_len = strlen("stdlib/") + strlen(import_name) + 1;
+    char* rel = malloc(rel_len);
+    if (rel) {
+      snprintf(rel, rel_len, "stdlib/%s", import_name);
+      FILE* f = fopen(rel, "r");
+      if (f) {
+        fclose(f);
+        return rel;
+      }
+      free(rel);
+    }
   }
 
   return NULL;
@@ -3728,7 +3796,33 @@ void run_file(const char* filename) {
       continue;
     }
 
-    if (stmt->type == A_VAR && tok.type == T_ASSIGN) {
+    /* NEW: preserve `const` for top-level assignments parsed as AST nodes.
+       parse_stmt() already consumed the '=' and RHS, so inspect the AST and
+       perform env_set with the previously-captured is_const flag. */
+    if (stmt->type == A_ASSIGN) {
+      if (!errors_occurred) {
+        Value v = eval(stmt->assign.value, global_env);
+        env_set(global_env, stmt->assign.name, v, is_const);
+      }
+    } else if (stmt->type == A_ASSIGN_UNPACK) {
+      if (!errors_occurred) {
+        Value rhs = eval(stmt->assign_unpack.value, global_env);
+        if (rhs.type != VAL_TUPLE && rhs.type != VAL_LIST) {
+          error_at(stmt->loc, "cannot unpack non-sequence");
+        } else {
+          size_t count = (rhs.type == VAL_TUPLE) ? rhs.tuple->size : rhs.list->size;
+          Value* items = (rhs.type == VAL_TUPLE) ? rhs.tuple->items : rhs.list->items;
+          if (count != stmt->assign_unpack.count) {
+            error_at(stmt->loc, "unpacking count mismatch");
+          } else {
+            for (size_t i = 0; i < count; i++) {
+              env_set(global_env, stmt->assign_unpack.names[i], items[i], is_const);
+            }
+          }
+        }
+      }
+    } else if (stmt->type == A_VAR && tok.type == T_ASSIGN) {
+      /* backward-compatible handling (rare, older parsing style) */
       char* name = stmt->name;
       next_token();
       AST* expr = parse_expr();
@@ -3738,6 +3832,7 @@ void run_file(const char* filename) {
       }
     } else if (stmt->type == A_CALL && stmt->call.fn->type == A_VAR &&
                tok.type == T_ASSIGN) {
+      /* function-definition shortcut: name(a,b)=body */
       char* name = stmt->call.fn->name;
       AST** args = stmt->call.args;
       size_t argc = stmt->call.argc;
@@ -3767,7 +3862,7 @@ void run_file(const char* filename) {
         }
       }
     } else {
-      if (!import_mode && !errors_occurred) {
+      if (!errors_occurred) {
         eval(stmt, global_env);
       }
     }

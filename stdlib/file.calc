@@ -8,8 +8,18 @@ extern sprintf = sprintf(ptr, string, any): int
 extern fclose = fclose(ptr): void
 extern malloc = malloc(int): ptr
 
-file_create(name) = fopen(name, "wb")
-file_read(name) = fopen(name, "r")
-file_write_str(ptr, str) = fputs(str, ptr)
-file_write_char(ptr, ch) = fputc(ch, ptr)
-file_close(ptr) = fclose(ptr)
+struct File {
+    path,
+    perm,
+
+    file_create(self) = {
+        if (self.perm == None) {
+            self.perm = "wb"
+        }
+        fopen(self.path, self.perm)
+    }
+
+    file_write_str(self, str) = fputs(self.fptr, str)
+    file_write_int(self, int) = fputs(self.fptr, int)
+    file_close(self) = fclose(self.fptr)
+}
