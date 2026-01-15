@@ -975,6 +975,7 @@ typedef enum {
   A_STRUCT_DEF,
   A_STRUCT_INIT,
   A_MEMBER,
+  A_MEMBER_ASSIGN,
   A_ASSIGN_UNPACK
 } ASTType;
 
@@ -1063,6 +1064,11 @@ struct AST {
       AST* obj;
       char* member;
     } member;
+    struct {
+      AST* obj;
+      char* member;
+      AST* value;
+    } member_assign;
     struct {
       char** names;
       size_t count;
@@ -1900,6 +1906,14 @@ AST* parse_stmt(void) {
       assign->assign.name = expr->name;
       assign->assign.value = rhs;
       return assign;
+    } else if (expr->type == A_MEMBER) {
+      next_token();
+      AST* rhs = parse_expr();
+      AST* ma = ast_new(A_MEMBER_ASSIGN);
+      ma->member_assign.obj = expr->member.obj;
+      ma->member_assign.member = expr->member.member;
+      ma->member_assign.value = rhs;
+      return ma;
     }
   }
 
@@ -3202,6 +3216,24 @@ Value eval(AST* a, Env* env) {
       }
       return call_method(obj, a->member.member, NULL, 0);
     }
+    case A_MEMBER_ASSIGN: {
+       Value val = eval(a->member_assign.value, env);
+       if (val.type == VAL_ERROR) return val;
+       Value obj = eval(a->member_assign.obj, env);
+       if (obj.type == VAL_STRUCT) {
+         StructDef* def = obj.struct_val->def;
+         for (size_t i = 0; i < def->field_count; i++) {
+           if (strcmp(a->member_assign.member, def->fields[i]) == 0) {
+             obj.struct_val->values[i] = val;
+             return val;
+           }
+         }
+         return v_error("field not found in struct for assignment");
+       }
+
+       return v_error("cannot assign to member of non-struct");
+    }
+
     case A_ASSIGN_UNPACK: {
       Value rhs = eval(a->assign_unpack.value, env);
       if (rhs.type != VAL_TUPLE && rhs.type != VAL_LIST) {
