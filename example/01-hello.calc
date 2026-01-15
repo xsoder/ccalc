@@ -3,6 +3,8 @@ x = "Hello world"
 
 # You can directly print anything u need there is no need to specify type.
 print(x)
+print('Urmom', x) # Will add space automatically
+
 
 # We have two string interpolation methods.
 print("%", x)

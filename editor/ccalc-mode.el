@@ -79,7 +79,7 @@
 
 (defconst ccalc-keywords
   '("if" "else" "while" "lambda" "const" "import"
-    "return" "break" "continue" "True" "False"))
+    "return" "break" "continue" "True" "False", "struct", "self"))
 
 (defconst ccalc-builtins
   '("print" "len" "range" "help" "type" "assert" "test" "link" "extern"))

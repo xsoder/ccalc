@@ -1,0 +1,5 @@
+math = 20
+print('Interpolation %' , math)
+
+math = math + 1
+print(math)

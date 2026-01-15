@@ -3696,3 +3696,4 @@ int main(int argc, char** argv) {
   arena_free(global_arena);
   return errors_occurred ? 1 : 0;
 }
+
