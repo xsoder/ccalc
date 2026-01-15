@@ -1,0 +1,4 @@
+link "/usr/lib64/libc.so.6"
+
+tc_yield() = {
+}

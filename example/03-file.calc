@@ -2,8 +2,9 @@ import "file"
 
 file = File {
     path: "main.txt",
-    perm: "a"
+    perm: "w"
 }
 
 file.create()
-file.write(1000)
+file.write("Ur mom")
+file.close()

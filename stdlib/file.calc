@@ -8,6 +8,7 @@ struct File {
     perm,
     fptr,
     str,
+
     create(self) = {
         self.fptr = fopen(self.path, self.perm)
         assert(self.fptr != None)

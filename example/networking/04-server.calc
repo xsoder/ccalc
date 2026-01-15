@@ -1,6 +1,3 @@
-# server.calc - minimal TCP server using libnetwrap.so
-# Run: ./ccalc server.calc
-
 import "net-module.calc"
 
 server_type = "tcp"
@@ -11,7 +8,7 @@ create_connection = lambda kind, port_or_path: {
   match kind : {
     "tcp": tcp_server(port_or_path)
     "unix": unix_server(port_or_path)
-    None : is_error(port_or_path)
+    None : continue
   }
 }
 

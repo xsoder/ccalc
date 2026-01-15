@@ -3586,7 +3586,6 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
       snprintf(rel, rel_len, "stdlib/%s", import_name);
 
       char* exet = force_ext(rel);
-      printf("%s\n", exet);
       if (!exet) {
           char* p2 = build_and_test(build_dir, rel);
           if (p2) return p2;
