@@ -1,7 +1,20 @@
-func() = {
-    100, 200
+print('%', "Urmom")
+
+struct Area {
+    x,
+    area
 }
 
-x, y = func()
+p = Area {
+    x: 100,
+    area : lambda self: { x = x * x }
+}
 
-print("First return value: % \nSecond return value %", x, y)
+function() = {
+    x = p.area()
+    print(x)
+    print("The area is %", p.area())
+    print(p.x)
+}
+
+function()
