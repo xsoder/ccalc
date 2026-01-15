@@ -9,10 +9,8 @@ init_window(window)
 const RED = NewColor(255, 0, 0)
 const BLUE = NewColor(0, 0, 255)
 
-dir = 1
-
-x = 0
-y = 0
+init() = { return 1, 0, 0 }
+dir, x, y = init()
 
 const SPEED = 0.3
 const SIZE = 100
