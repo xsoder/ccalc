@@ -20,15 +20,18 @@ if srv < 0 {
   print("Server failed to start")
   exit(1)
 }
-print("Listening on port:", port)
+print("Listening on port:% ....", port)
 
 client = accept(srv)
 if client < 0 :print("accept failed")
 else: print("Accepted client fd:", client)
 
 data = recv(client)
-if data == None: print("No data or client closed")
-else {
+if data == None: {
+    print("No data or client closed")
+    print("{client}")
+}
+else: {
     print("Received: %", data)
     send(client, "{data} sent to {client}!\n")
 }

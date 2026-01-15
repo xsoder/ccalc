@@ -1,0 +1,37 @@
+import "./rl-binds.calc"
+
+const WIDTH = 800
+const HEIGHT = 600
+
+window = (WIDTH, HEIGHT, "Urmom")
+init_window(window)
+
+const RED = NewColor(255, 0, 0)
+const BLUE = NewColor(0, 0, 255)
+
+dir = 1
+
+x = 0
+y = 0
+const SPEED = 0.3
+const SIZE = 100
+
+add(v, z) = { return v + z }
+transpose() = { dir = dir * -1}
+
+while window_should_close() == 0 {
+    match add(x, size): {
+        WIDTH: { transpose() }
+        HEIGHT: { transpose() }
+        0: { transpose() }
+    }
+
+    x = x + dir*SPEED
+
+    begin_drawing()
+    clear_background(RED)
+    draw_rectangle(x, y, SIZE, SIZE, BLUE)
+    end_drawing()
+}
+
+close_window()
