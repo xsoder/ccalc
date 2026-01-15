@@ -3,3 +3,7 @@ print('Interpolation %' , math)
 
 math = math + 1
 print(math)
+
+math = "It can also be a string"
+
+print("{math}")

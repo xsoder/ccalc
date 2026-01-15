@@ -3310,6 +3310,7 @@ void run_repl(void) {
       next_token();
       if (tok.type != T_IDENT) {
         error_at(tok.loc, "extern requires function name");
+        next_token();
         continue;
       }
       char ccalc_name[256];
@@ -3318,12 +3319,15 @@ void run_repl(void) {
 
       if (tok.type != T_ASSIGN) {
         error_at(tok.loc, "expected '=' after extern function name");
+        next_token();
         continue;
       }
+
       next_token();
 
       if (tok.type != T_IDENT) {
         error_at(tok.loc, "expected C function name");
+        next_token();
         continue;
       }
       char c_name[256];
@@ -3332,6 +3336,7 @@ void run_repl(void) {
 
       if (tok.type != T_LP) {
         error_at(tok.loc, "expected '(' for parameter types");
+        next_token();
         continue;
       }
       next_token();
@@ -3642,7 +3647,6 @@ void run_file(const char* filename) {
       next_token();
       if (tok.type != T_IDENT) {
         error_at(tok.loc, "extern requires function name");
-        next_token();
         continue;
       }
       char ccalc_name[256];
@@ -3651,7 +3655,12 @@ void run_file(const char* filename) {
 
       if (tok.type != T_ASSIGN) {
         error_at(tok.loc, "expected '=' after extern function name");
-        next_token();
+        continue;
+      }
+      next_token();
+
+      if (tok.type != T_IDENT) {
+        error_at(tok.loc, "expected C function name");
         continue;
       }
       char c_name[256];
@@ -3660,7 +3669,6 @@ void run_file(const char* filename) {
 
       if (tok.type != T_LP) {
         error_at(tok.loc, "expected '(' for parameter types");
-        next_token();
         continue;
       }
       next_token();
