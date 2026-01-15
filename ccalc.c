@@ -3535,8 +3535,6 @@ void run_repl(void) {
   }
 }
 
-/* replace existing resolve_import_path with this (put before run_file()) */
-
 #ifndef STR1
 #define STR1(x) #x
 #define STR(x) STR1(x)
@@ -3563,8 +3561,18 @@ static char* build_and_test(const char* a, const char* b) {
   return NULL;
 }
 
+/* TODO: For now hard code the extenstion  */
+char *force_ext(const char *name) {
+  char *ext = ".calc";
+  if (!name) return NULL;
+  char *buf = malloc(sizeof(*buf) + strlen(name) + strlen(ext));
+  if (!buf) return NULL;
+  strcpy(buf, name);
+  strcat(buf, ".calc");
+  return buf;
+}
+
 char* resolve_import_path(const char* import_name, const char* current_file) {
-  if (!import_name) return NULL;
 
 #ifdef BUILD_DIR
   {
@@ -3575,12 +3583,19 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
 
       size_t rel_len = strlen("stdlib/") + strlen(import_name) + 1;
       char* rel = malloc(rel_len);
-      if (rel) {
-        snprintf(rel, rel_len, "stdlib/%s", import_name);
-        char* p2 = build_and_test(build_dir, rel);
-        free(rel);
+      snprintf(rel, rel_len, "stdlib/%s", import_name);
+
+      char* exet = force_ext(rel);
+      printf("%s\n", exet);
+      if (!exet) {
+          char* p2 = build_and_test(build_dir, rel);
+          if (p2) return p2;
+      }
+      else{
+        char* p2 = build_and_test(build_dir, exet);
         if (p2) return p2;
       }
+      free(rel);
     }
   }
 #endif

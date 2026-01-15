@@ -1,0 +1,9 @@
+import "file"
+
+file = File {
+    path: "main.txt",
+    perm: "a"
+}
+
+file.create()
+file.write(1000)

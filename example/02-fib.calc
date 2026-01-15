@@ -13,5 +13,6 @@ print_fib_helper(n, index) = {
         print_fib_helper(n, index + 1)
      }
 }
+
 print_fib(n) = print_fib_helper(n, 0)
-print_fib(20)
+print_fib(100000)

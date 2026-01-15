@@ -13,6 +13,7 @@ dir = 1
 
 x = 0
 y = 0
+
 const SPEED = 0.3
 const SIZE = 100
 
@@ -27,6 +28,7 @@ while window_should_close() == 0 {
     }
 
     x = x + dir*SPEED
+    y = y + dir*SPEED
 
     begin_drawing()
     clear_background(RED)

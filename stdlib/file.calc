@@ -9,9 +9,6 @@ struct File {
     fptr,
     str,
     create(self) = {
-        if (self.perm == None) {
-            self.perm = "wb"
-        }
         self.fptr = fopen(self.path, self.perm)
         assert(self.fptr != None)
     }
@@ -20,4 +17,6 @@ struct File {
         self.str = "{value}"
         fputs(self.str, self.fptr)
     }
+
+    close(self) = fclose(self.fptr)
 }

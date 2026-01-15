@@ -9,7 +9,7 @@ extern fclose = fclose(ptr): void
 generate_ppm(name) = {
     fptr = fopen(name, "wb")
 
-    if fptr == None {
+    if fptr == None: {
         print("Could not create file")
         return
     }
@@ -20,9 +20,9 @@ generate_ppm(name) = {
     fputs("\n255\n", fptr)
 
     row = 0
-    while row < HEIGHT {
+    while row < HEIGHT: {
         col = 0
-        while col < WIDTH {
+        while col < WIDTH: {
             fputc(255, fptr)
             fputc(0, fptr)
             fputc(0, fptr)
@@ -32,7 +32,6 @@ generate_ppm(name) = {
     }
 
     fclose(fptr)
-    return
 }
 
 const WIDTH  = 960
