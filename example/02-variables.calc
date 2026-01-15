@@ -1,3 +1,4 @@
+# += or any such variant is still not supported
 math = 20
 print('Interpolation %' , math)
 
@@ -7,3 +8,9 @@ print(math)
 math = "It can also be a string"
 
 print("{math}")
+
+const PI = double(22)/double(7)
+print("{PI}")
+
+PI = 200
+print("{PI}")

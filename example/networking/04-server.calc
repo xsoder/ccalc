@@ -1,0 +1,37 @@
+# server.calc - minimal TCP server using libnetwrap.so
+# Run: ./ccalc server.calc
+
+import "net-module.calc"
+
+server_type = "tcp"
+port = 8080
+unix_path = "/tmp/ccalc.sock"
+
+create_connection = lambda kind, port_or_path: {
+  match kind : {
+    "tcp": tcp_server(port_or_path)
+    "unix": unix_server(port_or_path)
+    None : is_error(port_or_path)
+  }
+}
+
+srv = create_connection(server_type, port)
+if srv < 0 {
+  print("Server failed to start")
+  exit(1)
+}
+print("Listening on port:", port)
+
+client = accept(srv)
+if client < 0 :print("accept failed")
+else: print("Accepted client fd:", client)
+
+data = recv(client)
+if data == None: print("No data or client closed")
+else {
+    print("Received: %", data)
+    send(client, "{data} sent to {client}!\n")
+}
+close(client)
+
+close(srv)

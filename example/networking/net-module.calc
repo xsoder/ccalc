@@ -1,0 +1,8 @@
+link "./libnetwrap.so"
+
+extern tcp_server = nw_tcp_server(int): int
+extern unix_server = nw_unix_server(string): int
+extern accept = nw_accept(int): int
+extern close = nw_close(int): int
+extern send = nw_send(int, string): int
+extern recv = nw_recv_str(int): string
