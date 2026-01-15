@@ -1,6 +1,6 @@
 //   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling,
-//   Tuples, and Any Type Build: cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc
-//   -ldl -lm
+//   Tuples, and Any Type Build:
+//   cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm
 
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
