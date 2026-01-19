@@ -3,7 +3,7 @@
 ;; Copyright (C) 2025
 ;; Author: xsoder
 ;; Keywords: languages, math, ccalc
-;; Version: 0.1
+;; Version: 0.2
 ;; Package-Requires: ((emacs "25.3"))
 
 ;;; Commentary:
@@ -79,10 +79,10 @@
 
 (defconst ccalc-keywords
   '("if" "else" "while" "lambda" "const" "import"
-    "return" "break" "continue" "True" "False" "struct" "self"))
+    "return" "break" "continue" "True" "False" "struct" "self" "@"))
 
 (defconst ccalc-builtins
-  '("print" "len" "range" "help" "type" "assert" "test" "link" "extern" "match"))
+  '("print" "len" "range" "help" "type" "assert" "test" "link" "extern" "match" "os"))
 
 (defconst ccalc-constants
   '("None"))

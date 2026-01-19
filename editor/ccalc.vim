@@ -10,8 +10,9 @@ function! s:SetupSyntax()
 
   syntax clear
 
-  syntax keyword ccalcKeyword lambda if else while return break continue
-  syntax keyword ccalcKeyword const import link extern
+
+  syntax keyword ccalcKeyword if else while lambda const import return break continue True False struct
+  syntax keyword ccalcKeyword const import link extern self @ os
   syntax keyword ccalcBoolean True False
   syntax keyword ccalcNull None
   syntax keyword ccalcBuiltin print type len range tuple help assert test
