@@ -2,10 +2,8 @@
 
 set -xe
 
-if [ ! -d "build/"];then
-    mkdir -p build
-fi
+mkdir -p build
 
-cc -Wall -Wextra -shared -fPIC -o build/add.dll add.c
+cc -Wall -Wextra -shared -fPIC -o build/add.so add.c
 
 

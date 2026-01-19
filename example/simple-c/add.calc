@@ -1,7 +1,5 @@
 @os "win32" {
     link "./build/add.dll"
-    link "./build/sub.dll"
-    link "./build/mul.dll"
 }
 
 @os "linux" {
