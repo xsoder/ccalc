@@ -2,4 +2,4 @@
 
 set -xe
 
-cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm -DBUILD_DIR=$(pwd)
+cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -lm -ldl -DBUILD_DIR=$(pwd)

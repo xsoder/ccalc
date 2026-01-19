@@ -3,7 +3,12 @@
 //   cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm -DBUILD_DIR=$(pwd)
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
+#ifndef _WIN32
 #include <dlfcn.h>
+#else
+#include <windows.h>
+#include <direct.h>
+#endif
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -24,6 +29,40 @@
 bool use_colors = false;
 bool errors_occurred = false;
 bool import_mode = false;
+
+const char* get_current_os(void) {
+#if defined(_WIN32) || defined(_WIN64)
+  return "windows";
+#elif defined(__APPLE__) || defined(__MACH__)
+  return "macos";
+#elif defined(__linux__)
+  return "linux";
+#elif defined(__unix__)
+  return "unix";
+#elif defined(__FreeBSD__)
+  return "freebsd";
+#else
+  return "unknown";
+#endif
+}
+
+
+bool match_os(const char* os_name) {
+  const char* current = get_current_os();
+
+  if (!strcmp(os_name, "win") || !strcmp(os_name, "windows") || !strcmp(os_name, "win32"))
+    return !strcmp(current, "windows");
+  if (!strcmp(os_name, "mac") || !strcmp(os_name, "macos") || !strcmp(os_name, "darwin"))
+    return !strcmp(current, "macos");
+  if (!strcmp(os_name, "linux"))
+    return !strcmp(current, "linux");
+  if (!strcmp(os_name, "unix"))
+    return !strcmp(current, "unix") || !strcmp(current, "linux") || !strcmp(current, "macos") || !strcmp(current, "freebsd");
+  if (!strcmp(os_name, "freebsd"))
+    return !strcmp(current, "freebsd");
+
+  return !strcmp(current, os_name);
+}
 
 typedef struct {
   char** files;
@@ -583,6 +622,7 @@ typedef enum {
   T_LINK,
   T_EXTERN,
   T_STRUCT,
+  T_AT,
   T_EOF,
   T_ERROR
 } TokType;
@@ -682,6 +722,8 @@ const char* token_name(TokType t) {
       return "'extern'";
     case T_STRUCT:
       return "'struct'";
+    case T_AT:
+      return "'@'";
     case T_EOF:
       return "end of file";
     case T_MATCH:
@@ -942,6 +984,10 @@ void next_token(void) {
       tok.type = T_RC;
       strcpy(tok.text, "}");
       return;
+    case '@':
+      tok.type = T_AT;
+      strcpy(tok.text, "@");
+      return;
   }
 
   snprintf(tok.text, sizeof(tok.text), "%c", ch);
@@ -1098,7 +1144,7 @@ bool expect(TokType expected) {
 }
 
 AST* parse_match(void) {
-  next_token();  // skip 'match'
+  next_token();
   AST* obj = parse_expr();
 
   if (!expect(T_LC)) return obj;
@@ -2441,17 +2487,32 @@ void load_library(const char* path) {
     }
   }
 
-  void* handle = dlopen(path, RTLD_LAZY);
+  void* handle = NULL;
+
+#ifndef _WIN32
+  handle = dlopen(path, RTLD_LAZY);
   if (!handle) {
     fprintf(stderr, "Error loading library '%s': %s\n", path, dlerror());
     return;
   }
+#else
+  handle = (void*)LoadLibraryA(path);
+  if (!handle) {
+    DWORD error = GetLastError();
+    fprintf(stderr, "Error loading library '%s': error code %lu\n", path, error);
+    return;
+  }
+#endif
 
   if (loaded_libs_count >= loaded_libs_capacity) {
     size_t new_cap = loaded_libs_capacity == 0 ? 4 : loaded_libs_capacity * 2;
     LoadedLib* new_libs = realloc(loaded_libs, sizeof(LoadedLib) * new_cap);
     if (!new_libs) {
+#ifndef _WIN32
       dlclose(handle);
+#else
+      FreeLibrary((HMODULE)handle);
+#endif
       return;
     }
     loaded_libs = new_libs;
@@ -2465,7 +2526,11 @@ void load_library(const char* path) {
 
 void* find_symbol(const char* name) {
   for (size_t i = 0; i < loaded_libs_count; i++) {
+#ifndef _WIN32
     void* sym = dlsym(loaded_libs[i].handle, name);
+#else
+    void* sym = (void*)GetProcAddress((HMODULE)loaded_libs[i].handle, name);
+#endif
     if (sym) return sym;
   }
   return NULL;
@@ -3692,10 +3757,82 @@ void run_file(const char* filename) {
   errors_occurred = false;
 
   next_token();
+  bool skip_next = false;
 
   while (tok.type != T_EOF) {
     if (tok.type == T_ERROR) {
       next_token();
+      continue;
+    }
+    if (tok.type == T_AT) {
+      next_token();
+      if (tok.type != T_IDENT) {
+        error_at(tok.loc, "expected decorator name after '@'");
+        next_token();
+        continue;
+      }
+
+      char decorator[256];
+      strcpy(decorator, tok.text);
+      next_token();
+
+      if (!strcmp(decorator, "os")) {
+        if (tok.type != T_STRING) {
+          error_at(tok.loc, "@os requires a string argument");
+          next_token();
+          continue;
+        }
+        bool os_matches = match_os(tok.text);
+        next_token();
+
+        if (!expect(T_LC)) {
+          continue;
+        }
+        next_token();
+
+        while (tok.type != T_RC && tok.type != T_EOF) {
+          if (tok.type == T_LINK) {
+            next_token();
+            if (tok.type != T_STRING) {
+              error_at(tok.loc, "link requires a library path string");
+              next_token();
+              continue;
+            }
+            if (os_matches) {
+              char libpath[256];
+              strcpy(libpath, tok.text);
+              next_token();
+              load_library(libpath);
+            } else {
+              next_token();
+            }
+          } else if (tok.type == T_SEMI) {
+            next_token();
+          } else if (tok.type == T_RC) {
+            break;
+          } else {
+            error_at(tok.loc, "expected link statement or '}' in @os block");
+            next_token();
+          }
+        }
+
+        if (tok.type == T_RC) {
+          next_token();
+        }
+        continue;
+      } else {
+        error_at(tok.loc, "unknown decorator '@%s'", decorator);
+        next_token();
+        continue;
+      }
+    }
+
+    if (skip_next) {
+      skip_next = false;
+      while (tok.type != T_SEMI && tok.type != T_EOF && tok.type != T_AT) {
+        next_token();
+      }
+      if (tok.type == T_SEMI) next_token();
       continue;
     }
 

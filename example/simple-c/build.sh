@@ -2,4 +2,10 @@
 
 set -xe
 
-cc -shared -fPIC -o add.so add.c
+if [ ! -d "build/"];then
+    mkdir -p build
+fi
+
+cc -Wall -Wextra -shared -fPIC -o build/add.dll add.c
+
+
