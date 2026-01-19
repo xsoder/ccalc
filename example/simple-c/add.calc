@@ -1,0 +1,13 @@
+link "./add.so"
+link "/usr/lib64/libc.so.6"
+
+extern add = add(int, int): int
+extern fopen = fopen(string, string): ptr
+extern fputs = fputs(string,  ptr): int
+
+f = fopen("main.txt", "wb")
+assert(f != None)
+
+sum = add(20, 40)
+
+fputs("{sum}", f)

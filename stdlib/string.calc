@@ -1,0 +1,12 @@
+link "/usr/lib64/libc.so.6"
+
+extern strlen = strlen(string): int
+
+struct String {
+    str,
+    size
+    append(self, value) = {
+        self.str = "{self.str} {value}"
+        self.size = strlen(self.str)
+    }
+}

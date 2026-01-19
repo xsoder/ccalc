@@ -1,7 +1,9 @@
 link "/usr/lib/libc.so.6"
 
-extern fopen = fopen(string, string): ptr
-extern fputs = fputs(string, ptr): int
+extern fopen   = fopen(string, string): ptr
+extern fputs   = fputs(string, ptr): int
+extern fread   = fread(string, int, int, ptr): int
+extern ftell   = ftell(ptr): int
 
 struct File {
     path,
@@ -9,14 +11,18 @@ struct File {
     fptr,
     str,
 
-    create(self) = {
-        self.fptr = fopen(self.path, self.perm)
-        assert(self.fptr != None)
-    }
-
     write(self, value) = {
         self.str = "{value}"
         fputs(self.str, self.fptr)
+    }
+
+    open(self) = {
+        self.fptr = fopen(self.path, self.perm)
+        fputs(self.str, self.fptr)
+    }
+
+    write_newline(self) = {
+        fputs("\n", self.fptr)
     }
 
     close(self) = fclose(self.fptr)

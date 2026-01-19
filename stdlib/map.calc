@@ -1,4 +1,16 @@
-map_new() = [ [], [] ]
+struct Map {
+    obj,
+    new(self) = {
+        obj = [ [], [] ]
+    }
+    get(self, key) = {
+        map_get(self.obj, key)
+    }
+    set(self, key, value) = {
+        map_set(self.obj, key, value)
+    }
+
+}
 
 map_index(m, key) = {
     keys = m[0]
@@ -25,6 +37,13 @@ list_set(lst, idx, val) = {
     out
 }
 
+
+map_set(m, key, value) = {
+    i = map_index(m, key)
+    if i == -1: [ list_append_copy(m[0], key), list_append_copy(m[1], value)]
+    else: [ m[0], list_set(m[1], i, value) ]
+}
+
 list_append_copy(lst, val) = {
     out = []
     i = 0
@@ -35,11 +54,6 @@ list_append_copy(lst, val) = {
     out
 }
 
-map_set(m, key, value) = {
-    i = map_index(m, key)
-    if i == -1: [ list_append_copy(m[0], key), list_append_copy(m[1], value)]
-    else: [ m[0], list_set(m[1], i, value) ]
-}
 
 map_get(m, key) = {
     i = map_index(m, key)
