@@ -4259,7 +4259,7 @@ int main(int argc, char** argv) {
   if (file_arg > 0) {
     run_file(argv[file_arg]);
   } else {
-    printf("λ-calculus REPL with FFI, Closures, and Tuples\n");
+    printf(">>> -calculus REPL with FFI, Closures, and Tuples\n");
     printf("Type 'help()' for syntax or 'quit' to exit\n\n");
     run_repl();
   }
