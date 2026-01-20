@@ -6,8 +6,8 @@
 #ifndef _WIN32
 #include <dlfcn.h>
 #else
-#include <windows.h>
 #include <direct.h>
+#include <windows.h>
 #endif
 #include <math.h>
 #include <stdarg.h>
@@ -46,20 +46,20 @@ const char* get_current_os(void) {
 #endif
 }
 
-
 bool match_os(const char* os_name) {
   const char* current = get_current_os();
 
-  if (!strcmp(os_name, "win") || !strcmp(os_name, "windows") || !strcmp(os_name, "win32"))
+  if (!strcmp(os_name, "win") || !strcmp(os_name, "windows") ||
+      !strcmp(os_name, "win32"))
     return !strcmp(current, "windows");
-  if (!strcmp(os_name, "mac") || !strcmp(os_name, "macos") || !strcmp(os_name, "darwin"))
+  if (!strcmp(os_name, "mac") || !strcmp(os_name, "macos") ||
+      !strcmp(os_name, "darwin"))
     return !strcmp(current, "macos");
-  if (!strcmp(os_name, "linux"))
-    return !strcmp(current, "linux");
+  if (!strcmp(os_name, "linux")) return !strcmp(current, "linux");
   if (!strcmp(os_name, "unix"))
-    return !strcmp(current, "unix") || !strcmp(current, "linux") || !strcmp(current, "macos") || !strcmp(current, "freebsd");
-  if (!strcmp(os_name, "freebsd"))
-    return !strcmp(current, "freebsd");
+    return !strcmp(current, "unix") || !strcmp(current, "linux") ||
+           !strcmp(current, "macos") || !strcmp(current, "freebsd");
+  if (!strcmp(os_name, "freebsd")) return !strcmp(current, "freebsd");
 
   return !strcmp(current, os_name);
 }
@@ -91,7 +91,7 @@ void mark_file_imported(const char* filename) {
   if (import_tracker.count >= import_tracker.capacity) {
     import_tracker.capacity *= 2;
     import_tracker.files =
-      realloc(import_tracker.files, sizeof(char*) * import_tracker.capacity);
+        realloc(import_tracker.files, sizeof(char*) * import_tracker.capacity);
   }
   import_tracker.files[import_tracker.count++] = strdup(filename);
 }
@@ -405,60 +405,60 @@ bool value_is_truthy(Value v) {
     return value_is_truthy(*v.any_val);
   }
   switch (v.type) {
-  case VAL_NULL:
-    return false;
-  case VAL_ERROR:
-    return false;
-  case VAL_BOOL:
-    return v.b;
-  case VAL_INT:
-    return v.i != 0;
-  case VAL_DOUBLE:
-    return v.d != 0.0;
-  case VAL_STRING:
-    return v.s && v.s[0] != 0;
-  case VAL_LIST:
-    return v.list->size > 0;
-  case VAL_TUPLE:
-    return v.tuple->size > 0;
-  case VAL_FUNC:
-    return true;
-  case VAL_PTR:
-    return v.ptr != NULL;
-  case VAL_STRUCT_DEF:
-    return true;
-  case VAL_STRUCT:
-    return true;
-  case VAL_ANY:
-    return false;
+    case VAL_NULL:
+      return false;
+    case VAL_ERROR:
+      return false;
+    case VAL_BOOL:
+      return v.b;
+    case VAL_INT:
+      return v.i != 0;
+    case VAL_DOUBLE:
+      return v.d != 0.0;
+    case VAL_STRING:
+      return v.s && v.s[0] != 0;
+    case VAL_LIST:
+      return v.list->size > 0;
+    case VAL_TUPLE:
+      return v.tuple->size > 0;
+    case VAL_FUNC:
+      return true;
+    case VAL_PTR:
+      return v.ptr != NULL;
+    case VAL_STRUCT_DEF:
+      return true;
+    case VAL_STRUCT:
+      return true;
+    case VAL_ANY:
+      return false;
   }
   return false;
 }
 bool values_equal(Value a, Value b) {
   if (a.type != b.type) return false;
   switch (a.type) {
-  case VAL_INT:
-    return a.i == b.i;
-  case VAL_DOUBLE:
-    return a.d == b.d;
-  case VAL_BOOL:
-    return a.b == b.b;
-  case VAL_STRING:
-    return strcmp(a.s, b.s) == 0;
-  case VAL_NULL:
-    return true;
-  case VAL_PTR:
-    return a.ptr == b.ptr;
-  case VAL_TUPLE:
-    if (a.tuple->size != b.tuple->size) return false;
-    for (size_t i = 0; i < a.tuple->size; i++) {
-      if (!values_equal(a.tuple->items[i], b.tuple->items[i])) return false;
-    }
-    return true;
-  case VAL_ANY:
-    return values_equal(*a.any_val, *b.any_val);
-  default:
-    return false;
+    case VAL_INT:
+      return a.i == b.i;
+    case VAL_DOUBLE:
+      return a.d == b.d;
+    case VAL_BOOL:
+      return a.b == b.b;
+    case VAL_STRING:
+      return strcmp(a.s, b.s) == 0;
+    case VAL_NULL:
+      return true;
+    case VAL_PTR:
+      return a.ptr == b.ptr;
+    case VAL_TUPLE:
+      if (a.tuple->size != b.tuple->size) return false;
+      for (size_t i = 0; i < a.tuple->size; i++) {
+        if (!values_equal(a.tuple->items[i], b.tuple->items[i])) return false;
+      }
+      return true;
+    case VAL_ANY:
+      return values_equal(*a.any_val, *b.any_val);
+    default:
+      return false;
   }
 }
 double value_to_double(Value v) {
@@ -472,32 +472,32 @@ double value_to_double(Value v) {
 
 const char* value_type_name(Value v) {
   switch (v.type) {
-  case VAL_INT:
-    return "int";
-  case VAL_DOUBLE:
-    return "double";
-  case VAL_STRING:
-    return "string";
-  case VAL_FUNC:
-    return "function";
-  case VAL_LIST:
-    return "list";
-  case VAL_NULL:
-    return "null";
-  case VAL_BOOL:
-    return "bool";
-  case VAL_ERROR:
-    return "error";
-  case VAL_TUPLE:
-    return "tuple";
-  case VAL_PTR:
-    return "ptr";
-  case VAL_STRUCT_DEF:
-    return "struct_def";
-  case VAL_STRUCT:
-    return "struct";
-  case VAL_ANY:
-    return "any";
+    case VAL_INT:
+      return "int";
+    case VAL_DOUBLE:
+      return "double";
+    case VAL_STRING:
+      return "string";
+    case VAL_FUNC:
+      return "function";
+    case VAL_LIST:
+      return "list";
+    case VAL_NULL:
+      return "null";
+    case VAL_BOOL:
+      return "bool";
+    case VAL_ERROR:
+      return "error";
+    case VAL_TUPLE:
+      return "tuple";
+    case VAL_PTR:
+      return "ptr";
+    case VAL_STRUCT_DEF:
+      return "struct_def";
+    case VAL_STRUCT:
+      return "struct";
+    case VAL_ANY:
+      return "any";
   }
   return "unknown";
 }
@@ -505,32 +505,32 @@ const char* value_type_name(Value v) {
 const char* value_type_color(Value v) {
   if (!use_colors) return "";
   switch (v.type) {
-  case VAL_INT:
-    return COLOR_CYAN;
-  case VAL_DOUBLE:
-    return COLOR_BLUE;
-  case VAL_STRING:
-    return COLOR_GREEN;
-  case VAL_FUNC:
-    return COLOR_MAGENTA;
-  case VAL_LIST:
-    return COLOR_YELLOW;
-  case VAL_NULL:
-    return COLOR_GRAY;
-  case VAL_BOOL:
-    return COLOR_RED;
-  case VAL_ERROR:
-    return COLOR_RED;
-  case VAL_TUPLE:
-    return COLOR_MAGENTA;
-  case VAL_PTR:
-    return COLOR_WHITE;
-  case VAL_STRUCT_DEF:
-    return COLOR_CYAN;
-  case VAL_STRUCT:
-    return COLOR_CYAN;
-  case VAL_ANY:
-    return COLOR_YELLOW;
+    case VAL_INT:
+      return COLOR_CYAN;
+    case VAL_DOUBLE:
+      return COLOR_BLUE;
+    case VAL_STRING:
+      return COLOR_GREEN;
+    case VAL_FUNC:
+      return COLOR_MAGENTA;
+    case VAL_LIST:
+      return COLOR_YELLOW;
+    case VAL_NULL:
+      return COLOR_GRAY;
+    case VAL_BOOL:
+      return COLOR_RED;
+    case VAL_ERROR:
+      return COLOR_RED;
+    case VAL_TUPLE:
+      return COLOR_MAGENTA;
+    case VAL_PTR:
+      return COLOR_WHITE;
+    case VAL_STRUCT_DEF:
+      return COLOR_CYAN;
+    case VAL_STRUCT:
+      return COLOR_CYAN;
+    case VAL_ANY:
+      return COLOR_YELLOW;
   }
   return COLOR_RESET;
 }
@@ -642,100 +642,100 @@ Token tok;
 
 const char* token_name(TokType t) {
   switch (t) {
-  case T_INT:
-    return "integer";
-  case T_DOUBLE:
-    return "double";
-  case T_STRING:
-    return "string";
-  case T_IDENT:
-    return "identifier";
-  case T_LP:
-    return "'('";
-  case T_RP:
-    return "')'";
-  case T_COMMA:
-    return "','";
-  case T_LB:
-    return "'['";
-  case T_RB:
-    return "']'";
-  case T_DOTDOT:
-    return "'..'";
-  case T_DOT:
-    return "'.'";
-  case T_PLUS:
-    return "'+'";
-  case T_MINUS:
-    return "'-'";
-  case T_STAR:
-    return "'*'";
-  case T_SLASH:
-    return "'/'";
-  case T_MOD:
-    return "'%'";
-  case T_POW:
-    return "'**'";
-  case T_ASSIGN:
-    return "'='";
-  case T_COLON:
-    return "':'";
-  case T_SEMI:
-    return "';'";
-  case T_EQ:
-    return "'=='";
-  case T_NE:
-    return "'!='";
-  case T_LT:
-    return "'<'";
-  case T_GT:
-    return "'>'";
-  case T_LE:
-    return "'<='";
-  case T_GE:
-    return "'>='";
-  case T_LAMBDA:
-    return "'lambda'";
-  case T_IF:
-    return "'if'";
-  case T_ELSE:
-    return "'else'";
-  case T_FOR:
-    return "'for'";
-  case T_WHILE:
-    return "'while'";
-  case T_TRUE:
-    return "'True'";
-  case T_FALSE:
-    return "'False'";
-  case T_CONST:
-    return "'const'";
-  case T_IMPORT:
-    return "'import'";
-  case T_LC:
-    return "'{'";
-  case T_RC:
-    return "'}'";
-  case T_RETURN:
-    return "'return'";
-  case T_BREAK:
-    return "'break'";
-  case T_CONTINUE:
-    return "'continue'";
-  case T_LINK:
-    return "'link'";
-  case T_EXTERN:
-    return "'extern'";
-  case T_STRUCT:
-    return "'struct'";
-  case T_AT:
-    return "'@'";
-  case T_EOF:
-    return "end of file";
-  case T_MATCH:
-    return "match";
-  case T_ERROR:
-    return "error";
+    case T_INT:
+      return "integer";
+    case T_DOUBLE:
+      return "double";
+    case T_STRING:
+      return "string";
+    case T_IDENT:
+      return "identifier";
+    case T_LP:
+      return "'('";
+    case T_RP:
+      return "')'";
+    case T_COMMA:
+      return "','";
+    case T_LB:
+      return "'['";
+    case T_RB:
+      return "']'";
+    case T_DOTDOT:
+      return "'..'";
+    case T_DOT:
+      return "'.'";
+    case T_PLUS:
+      return "'+'";
+    case T_MINUS:
+      return "'-'";
+    case T_STAR:
+      return "'*'";
+    case T_SLASH:
+      return "'/'";
+    case T_MOD:
+      return "'%'";
+    case T_POW:
+      return "'**'";
+    case T_ASSIGN:
+      return "'='";
+    case T_COLON:
+      return "':'";
+    case T_SEMI:
+      return "';'";
+    case T_EQ:
+      return "'=='";
+    case T_NE:
+      return "'!='";
+    case T_LT:
+      return "'<'";
+    case T_GT:
+      return "'>'";
+    case T_LE:
+      return "'<='";
+    case T_GE:
+      return "'>='";
+    case T_LAMBDA:
+      return "'lambda'";
+    case T_IF:
+      return "'if'";
+    case T_ELSE:
+      return "'else'";
+    case T_FOR:
+      return "'for'";
+    case T_WHILE:
+      return "'while'";
+    case T_TRUE:
+      return "'True'";
+    case T_FALSE:
+      return "'False'";
+    case T_CONST:
+      return "'const'";
+    case T_IMPORT:
+      return "'import'";
+    case T_LC:
+      return "'{'";
+    case T_RC:
+      return "'}'";
+    case T_RETURN:
+      return "'return'";
+    case T_BREAK:
+      return "'break'";
+    case T_CONTINUE:
+      return "'continue'";
+    case T_LINK:
+      return "'link'";
+    case T_EXTERN:
+      return "'extern'";
+    case T_STRUCT:
+      return "'struct'";
+    case T_AT:
+      return "'@'";
+    case T_EOF:
+      return "end of file";
+    case T_MATCH:
+      return "match";
+    case T_ERROR:
+      return "error";
   }
   return "unknown";
 }
@@ -782,7 +782,8 @@ void next_token(void) {
     char* start = (char*)src;
     if (*src == '.') has_dot = true;
 
-    while (isdigit(*src) || (*src == '.' && !has_dot && *(src + 1) != '.')) {  // Added check for '..'
+    while (isdigit(*src) || (*src == '.' && !has_dot &&
+                             *(src + 1) != '.')) {  // Added check for '..'
       if (*src == '.') has_dot = true;
       src++;
       current_loc.column++;
@@ -809,18 +810,18 @@ void next_token(void) {
         src++;
         current_loc.column++;
         switch (*src) {
-        case 'n':
-          *p++ = '\n';
-          break;
-        case 't':
-          *p++ = '\t';
-          break;
-        case '\\':
-          *p++ = '\\';
-          break;
-        default:
-          *p++ = *src;
-          break;
+          case 'n':
+            *p++ = '\n';
+            break;
+          case 't':
+            *p++ = '\t';
+            break;
+          case '\\':
+            *p++ = '\\';
+            break;
+          default:
+            *p++ = *src;
+            break;
         }
         src++;
         current_loc.column++;
@@ -930,82 +931,82 @@ void next_token(void) {
   current_loc.column++;
 
   switch (ch) {
-  case '+':
-    tok.type = T_PLUS;
-    strcpy(tok.text, "+");
-    return;
-  case '-':
-    tok.type = T_MINUS;
-    strcpy(tok.text, "-");
-    return;
-  case '*':
-    tok.type = T_STAR;
-    strcpy(tok.text, "*");
-    return;
-  case '/':
-    tok.type = T_SLASH;
-    strcpy(tok.text, "/");
-    return;
-  case '%':
-    tok.type = T_MOD;
-    strcpy(tok.text, "%");
-    return;
-  case '(':
-    tok.type = T_LP;
-    strcpy(tok.text, "(");
-    return;
-  case ')':
-    tok.type = T_RP;
-    strcpy(tok.text, ")");
-    return;
-  case '[':
-    tok.type = T_LB;
-    strcpy(tok.text, "[");
-    return;
-  case ']':
-    tok.type = T_RB;
-    strcpy(tok.text, "]");
-    return;
-  case ',':
-    tok.type = T_COMMA;
-    strcpy(tok.text, ",");
-    return;
-  case '=':
-    tok.type = T_ASSIGN;
-    strcpy(tok.text, "=");
-    return;
-  case ':':
-    tok.type = T_COLON;
-    strcpy(tok.text, ":");
-    return;
-  case ';':
-    tok.type = T_SEMI;
-    strcpy(tok.text, ";");
-    return;
-  case '.':
-    tok.type = T_DOT;
-    strcpy(tok.text, ".");
-    return;
-  case '<':
-    tok.type = T_LT;
-    strcpy(tok.text, "<");
-    return;
-  case '>':
-    tok.type = T_GT;
-    strcpy(tok.text, ">");
-    return;
-  case '{':
-    tok.type = T_LC;
-    strcpy(tok.text, "{");
-    return;
-  case '}':
-    tok.type = T_RC;
-    strcpy(tok.text, "}");
-    return;
-  case '@':
-    tok.type = T_AT;
-    strcpy(tok.text, "@");
-    return;
+    case '+':
+      tok.type = T_PLUS;
+      strcpy(tok.text, "+");
+      return;
+    case '-':
+      tok.type = T_MINUS;
+      strcpy(tok.text, "-");
+      return;
+    case '*':
+      tok.type = T_STAR;
+      strcpy(tok.text, "*");
+      return;
+    case '/':
+      tok.type = T_SLASH;
+      strcpy(tok.text, "/");
+      return;
+    case '%':
+      tok.type = T_MOD;
+      strcpy(tok.text, "%");
+      return;
+    case '(':
+      tok.type = T_LP;
+      strcpy(tok.text, "(");
+      return;
+    case ')':
+      tok.type = T_RP;
+      strcpy(tok.text, ")");
+      return;
+    case '[':
+      tok.type = T_LB;
+      strcpy(tok.text, "[");
+      return;
+    case ']':
+      tok.type = T_RB;
+      strcpy(tok.text, "]");
+      return;
+    case ',':
+      tok.type = T_COMMA;
+      strcpy(tok.text, ",");
+      return;
+    case '=':
+      tok.type = T_ASSIGN;
+      strcpy(tok.text, "=");
+      return;
+    case ':':
+      tok.type = T_COLON;
+      strcpy(tok.text, ":");
+      return;
+    case ';':
+      tok.type = T_SEMI;
+      strcpy(tok.text, ";");
+      return;
+    case '.':
+      tok.type = T_DOT;
+      strcpy(tok.text, ".");
+      return;
+    case '<':
+      tok.type = T_LT;
+      strcpy(tok.text, "<");
+      return;
+    case '>':
+      tok.type = T_GT;
+      strcpy(tok.text, ">");
+      return;
+    case '{':
+      tok.type = T_LC;
+      strcpy(tok.text, "{");
+      return;
+    case '}':
+      tok.type = T_RC;
+      strcpy(tok.text, "}");
+      return;
+    case '@':
+      tok.type = T_AT;
+      strcpy(tok.text, "@");
+      return;
   }
 
   snprintf(tok.text, sizeof(tok.text), "%c", ch);
@@ -1733,27 +1734,27 @@ AST* parse_comparison(void) {
          tok.type == T_GT || tok.type == T_LE || tok.type == T_GE) {
     char op;
     switch (tok.type) {
-    case T_EQ:
-      op = 'E';
-      break;
-    case T_NE:
-      op = 'N';
-      break;
-    case T_LT:
-      op = '<';
-      break;
-    case T_GT:
-      op = '>';
-      break;
-    case T_LE:
-      op = 'L';
-      break;
-    case T_GE:
-      op = 'G';
-      break;
-    default:
-      op = 'E';
-      break;
+      case T_EQ:
+        op = 'E';
+        break;
+      case T_NE:
+        op = 'N';
+        break;
+      case T_LT:
+        op = '<';
+        break;
+      case T_GT:
+        op = '>';
+        break;
+      case T_LE:
+        op = 'L';
+        break;
+      case T_GE:
+        op = 'G';
+        break;
+      default:
+        op = 'E';
+        break;
     }
     next_token();
     AST* b = parse_range();
@@ -1829,10 +1830,11 @@ AST* parse_expr(void) {
     next_token();
 
     if (tok.type != T_IDENT) {
-      error_at(tok.loc, "Expected a variable name but got %s", token_name(tok.type));
+      error_at(tok.loc, "Expected a variable name but got %s",
+               token_name(tok.type));
       return ast_new(A_INT);
     }
-    char *var = xstrdup(tok.text);
+    char* var = xstrdup(tok.text);
     next_token();
 
     if (tok.type != T_COLON) {
@@ -1847,7 +1849,8 @@ AST* parse_expr(void) {
     if (tok.type == T_LC) {
       body = parse_block();
     } else {
-      error_at(tok.loc, "expected '{' for for loop body, got %s", token_name(tok.type));
+      error_at(tok.loc, "expected '{' for for loop body, got %s",
+               token_name(tok.type));
       return ast_new(A_INT);
     }
 
@@ -2054,101 +2057,101 @@ void print_value(Value v) {
   }
 
   switch (v.type) {
-  case VAL_INT:
-    printf("%s%lld%s", color, v.i, reset);
-    break;
-  case VAL_DOUBLE:
-    printf("%s%g%s", color, v.d, reset);
-    break;
-  case VAL_STRING:
-    printf("%s%s%s", color, v.s, reset);
-    break;
-  case VAL_BOOL:
-    printf("%s%s%s", color, v.b ? "True" : "False", reset);
-    break;
-  case VAL_NULL:
-    printf("%sNone%s", color, reset);
-    break;
-  case VAL_ERROR:
-    printf("%sError: %s%s", color, v.s, reset);
-    break;
-  case VAL_FUNC:
-    printf("%s<function>%s", color, reset);
-    break;
-  case VAL_PTR:
-    printf("%s<ptr:%p>%s", color, v.ptr, reset);
-    break;
-  case VAL_ANY:
-    printf("%s<any:null>%s", color, reset);
-    break;
-  case VAL_STRUCT_DEF:
-    printf("%s<struct %s>%s", color, v.struct_def->name, reset);
-    break;
-  case VAL_STRUCT:
-    printf("%s%s {", color, v.struct_val->def->name);
-    for (size_t i = 0; i < v.struct_val->def->field_count; i++) {
-      if (i > 0) printf(", ");
-      printf(" %s: ", v.struct_val->def->fields[i]);
-      print_value(v.struct_val->values[i]);
-    }
-    printf(" }%s", reset);
-    break;
-  case VAL_LIST:
-    printf("%s[%s", color, reset);
-    for (size_t j = 0; j < v.list->size; j++) {
-      if (j > 0) printf(", ");
-      Value item = v.list->items[j];
-      if (item.type == VAL_INT)
-        printf("%s%lld%s", value_type_color(item), item.i, reset);
-      else if (item.type == VAL_DOUBLE)
-        printf("%s%g%s", value_type_color(item), item.d, reset);
-      else if (item.type == VAL_STRING)
-        printf("%s\"%s\"%s", value_type_color(item), item.s, reset);
-      else if (item.type == VAL_BOOL)
-        printf("%s%s%s", value_type_color(item), item.b ? "True" : "False",
-               reset);
-      else if (item.type == VAL_PTR)
-        printf("%s<ptr:%p>%s", value_type_color(item), item.ptr, reset);
-      else
-        printf("?");
-    }
-    printf("%s]%s", color, reset);
-    break;
-  case VAL_TUPLE:
-    printf("%s(%s", color, reset);
-    for (size_t j = 0; j < v.tuple->size; j++) {
-      if (j > 0) printf(", ");
-      Value item = v.tuple->items[j];
-      if (item.type == VAL_INT)
-        printf("%s%lld%s", value_type_color(item), item.i, reset);
-      else if (item.type == VAL_DOUBLE)
-        printf("%s%g%s", value_type_color(item), item.d, reset);
-      else if (item.type == VAL_STRING)
-        printf("%s\"%s\"%s", value_type_color(item), item.s, reset);
-      else if (item.type == VAL_BOOL)
-        printf("%s%s%s", value_type_color(item), item.b ? "True" : "False",
-               reset);
-      else if (item.type == VAL_PTR)
-        printf("%s<ptr:%p>%s", value_type_color(item), item.ptr, reset);
-      else if (v.type == VAL_FUNC)
-        printf("%s<function>%s\n", color, reset);
-      else if (v.type == VAL_NULL)
-        printf("%sNone%s\n", color, reset);
-      else if (v.type == VAL_STRUCT_DEF)
-        printf("%s<struct %s>%s\n", color, v.struct_def->name, reset);
-      else if (v.type == VAL_STRUCT) {
-        printf("%s%s {", color, v.struct_val->def->name);
-        for (size_t i = 0; i < v.struct_val->def->field_count; i++) {
-          if (i > 0) printf(", ");
-          printf(" %s: ", v.struct_val->def->fields[i]);
-          print_value(v.struct_val->values[i]);
-        }
-        printf(" }%s\n", reset);
-      } else
-        printf("?");
-    }
-    printf("%s)%s", color, reset);
-    break;
+    case VAL_INT:
+      printf("%s%lld%s", color, v.i, reset);
+      break;
+    case VAL_DOUBLE:
+      printf("%s%g%s", color, v.d, reset);
+      break;
+    case VAL_STRING:
+      printf("%s%s%s", color, v.s, reset);
+      break;
+    case VAL_BOOL:
+      printf("%s%s%s", color, v.b ? "True" : "False", reset);
+      break;
+    case VAL_NULL:
+      printf("%sNone%s", color, reset);
+      break;
+    case VAL_ERROR:
+      printf("%sError: %s%s", color, v.s, reset);
+      break;
+    case VAL_FUNC:
+      printf("%s<function>%s", color, reset);
+      break;
+    case VAL_PTR:
+      printf("%s<ptr:%p>%s", color, v.ptr, reset);
+      break;
+    case VAL_ANY:
+      printf("%s<any:null>%s", color, reset);
+      break;
+    case VAL_STRUCT_DEF:
+      printf("%s<struct %s>%s", color, v.struct_def->name, reset);
+      break;
+    case VAL_STRUCT:
+      printf("%s%s {", color, v.struct_val->def->name);
+      for (size_t i = 0; i < v.struct_val->def->field_count; i++) {
+        if (i > 0) printf(", ");
+        printf(" %s: ", v.struct_val->def->fields[i]);
+        print_value(v.struct_val->values[i]);
+      }
+      printf(" }%s", reset);
+      break;
+    case VAL_LIST:
+      printf("%s[%s", color, reset);
+      for (size_t j = 0; j < v.list->size; j++) {
+        if (j > 0) printf(", ");
+        Value item = v.list->items[j];
+        if (item.type == VAL_INT)
+          printf("%s%lld%s", value_type_color(item), item.i, reset);
+        else if (item.type == VAL_DOUBLE)
+          printf("%s%g%s", value_type_color(item), item.d, reset);
+        else if (item.type == VAL_STRING)
+          printf("%s\"%s\"%s", value_type_color(item), item.s, reset);
+        else if (item.type == VAL_BOOL)
+          printf("%s%s%s", value_type_color(item), item.b ? "True" : "False",
+                 reset);
+        else if (item.type == VAL_PTR)
+          printf("%s<ptr:%p>%s", value_type_color(item), item.ptr, reset);
+        else
+          printf("?");
+      }
+      printf("%s]%s", color, reset);
+      break;
+    case VAL_TUPLE:
+      printf("%s(%s", color, reset);
+      for (size_t j = 0; j < v.tuple->size; j++) {
+        if (j > 0) printf(", ");
+        Value item = v.tuple->items[j];
+        if (item.type == VAL_INT)
+          printf("%s%lld%s", value_type_color(item), item.i, reset);
+        else if (item.type == VAL_DOUBLE)
+          printf("%s%g%s", value_type_color(item), item.d, reset);
+        else if (item.type == VAL_STRING)
+          printf("%s\"%s\"%s", value_type_color(item), item.s, reset);
+        else if (item.type == VAL_BOOL)
+          printf("%s%s%s", value_type_color(item), item.b ? "True" : "False",
+                 reset);
+        else if (item.type == VAL_PTR)
+          printf("%s<ptr:%p>%s", value_type_color(item), item.ptr, reset);
+        else if (v.type == VAL_FUNC)
+          printf("%s<function>%s\n", color, reset);
+        else if (v.type == VAL_NULL)
+          printf("%sNone%s\n", color, reset);
+        else if (v.type == VAL_STRUCT_DEF)
+          printf("%s<struct %s>%s\n", color, v.struct_def->name, reset);
+        else if (v.type == VAL_STRUCT) {
+          printf("%s%s {", color, v.struct_val->def->name);
+          for (size_t i = 0; i < v.struct_val->def->field_count; i++) {
+            if (i > 0) printf(", ");
+            printf(" %s: ", v.struct_val->def->fields[i]);
+            print_value(v.struct_val->values[i]);
+          }
+          printf(" }%s\n", reset);
+        } else
+          printf("?");
+      }
+      printf("%s)%s", color, reset);
+      break;
   }
 }
 
@@ -2328,24 +2331,24 @@ Value builtin_int(Value* args, size_t argc) {
   }
 
   switch (arg.type) {
-  case VAL_INT:
-    return arg;
-  case VAL_DOUBLE:
-    return v_int((long long)arg.d);
-  case VAL_BOOL:
-    return v_int(arg.b ? 1 : 0);
-  case VAL_PTR:
-    return v_int((long long)arg.ptr);
-  case VAL_STRING: {
-    char* endptr;
-    long long val = strtoll(arg.s, &endptr, 10);
-    if (*endptr != '\0') {
-      return v_error("cannot convert string to int: invalid format");
+    case VAL_INT:
+      return arg;
+    case VAL_DOUBLE:
+      return v_int((long long)arg.d);
+    case VAL_BOOL:
+      return v_int(arg.b ? 1 : 0);
+    case VAL_PTR:
+      return v_int((long long)arg.ptr);
+    case VAL_STRING: {
+      char* endptr;
+      long long val = strtoll(arg.s, &endptr, 10);
+      if (*endptr != '\0') {
+        return v_error("cannot convert string to int: invalid format");
+      }
+      return v_int(val);
     }
-    return v_int(val);
-  }
-  default:
-    return v_error("cannot convert to int");
+    default:
+      return v_error("cannot convert to int");
   }
 }
 
@@ -2361,22 +2364,22 @@ Value builtin_double(Value* args, size_t argc) {
   }
 
   switch (arg.type) {
-  case VAL_DOUBLE:
-    return arg;
-  case VAL_INT:
-    return v_double((double)arg.i);
-  case VAL_BOOL:
-    return v_double(arg.b ? 1.0 : 0.0);
-  case VAL_STRING: {
-    char* endptr;
-    double val = strtod(arg.s, &endptr);
-    if (*endptr != '\0') {
-      return v_error("cannot convert string to double: invalid format");
+    case VAL_DOUBLE:
+      return arg;
+    case VAL_INT:
+      return v_double((double)arg.i);
+    case VAL_BOOL:
+      return v_double(arg.b ? 1.0 : 0.0);
+    case VAL_STRING: {
+      char* endptr;
+      double val = strtod(arg.s, &endptr);
+      if (*endptr != '\0') {
+        return v_error("cannot convert string to double: invalid format");
+      }
+      return v_double(val);
     }
-    return v_double(val);
-  }
-  default:
-    return v_error("cannot convert to double");
+    default:
+      return v_error("cannot convert to double");
   }
 }
 
@@ -2394,26 +2397,26 @@ Value builtin_str(Value* args, size_t argc) {
   char buf[256];
 
   switch (arg.type) {
-  case VAL_STRING:
-    return arg;
-  case VAL_INT:
-    snprintf(buf, sizeof(buf), "%lld", arg.i);
-    return v_str(buf);
-  case VAL_DOUBLE:
-    snprintf(buf, sizeof(buf), "%g", arg.d);
-    return v_str(buf);
-  case VAL_BOOL:
-    return v_str(arg.b ? "True" : "False");
-  case VAL_NULL:
-    return v_str("None");
-  case VAL_PTR:
-    snprintf(buf, sizeof(buf), "<ptr:%p>", arg.ptr);
-    return v_str(buf);
-  case VAL_ERROR:
-    snprintf(buf, sizeof(buf), "Error: %s", arg.s);
-    return v_str(buf);
-  default:
-    return v_error("cannot convert to string");
+    case VAL_STRING:
+      return arg;
+    case VAL_INT:
+      snprintf(buf, sizeof(buf), "%lld", arg.i);
+      return v_str(buf);
+    case VAL_DOUBLE:
+      snprintf(buf, sizeof(buf), "%g", arg.d);
+      return v_str(buf);
+    case VAL_BOOL:
+      return v_str(arg.b ? "True" : "False");
+    case VAL_NULL:
+      return v_str("None");
+    case VAL_PTR:
+      snprintf(buf, sizeof(buf), "<ptr:%p>", arg.ptr);
+      return v_str(buf);
+    case VAL_ERROR:
+      snprintf(buf, sizeof(buf), "Error: %s", arg.s);
+      return v_str(buf);
+    default:
+      return v_error("cannot convert to string");
   }
 }
 
@@ -2501,7 +2504,7 @@ Value builtin_help(Value* args, size_t argc) {
   printf("\n=== Built-in Functions ===\n");
   printf("print(...)     - Print values\n");
   printf(
-         "                 Supports %% placeholders: print(\"Value: %%\", x)\n");
+      "                 Supports %% placeholders: print(\"Value: %%\", x)\n");
   printf("type(x)        - Get type of value\n");
   printf("assert(...)    - Asserts two expressions\n");
   printf("exit(...)      - Exits with exit code\n");
@@ -2524,8 +2527,8 @@ Value builtin_help(Value* args, size_t argc) {
   printf("link \"lib.so\"   - Load C shared library\n");
   printf("extern f = c_func(int, string): int - Declare C function\n");
   printf(
-         "  Supported types: int, double, string, void, ptr, long, float, "
-         "char, bool, any\n");
+      "  Supported types: int, double, string, void, ptr, long, float, "
+      "char, bool, any\n");
   printf("\n=== Working with Structs (via FFI) ===\n");
   printf("1. Create C wrapper functions that return/accept pointers\n");
   printf("2. Declare wrappers with 'extern'\n");
@@ -2574,7 +2577,8 @@ void load_library(const char* path) {
   handle = (void*)LoadLibraryA(path);
   if (!handle) {
     DWORD error = GetLastError();
-    fprintf(stderr, "Error loading library '%s': error code %lu\n", path, error);
+    fprintf(stderr, "Error loading library '%s': error code %lu\n", path,
+            error);
     return;
   }
 #endif
@@ -2647,7 +2651,7 @@ void register_extern(const char* ccalc_name, const char* c_name,
   extern_funcs[extern_funcs_count].c_name = strdup(c_name);
   extern_funcs[extern_funcs_count].func_ptr = func_ptr;
   extern_funcs[extern_funcs_count].param_types =
-    malloc(sizeof(FFIType) * param_count);
+      malloc(sizeof(FFIType) * param_count);
   memcpy(extern_funcs[extern_funcs_count].param_types, param_types,
          sizeof(FFIType) * param_count);
   extern_funcs[extern_funcs_count].param_count = param_count;
@@ -2662,7 +2666,6 @@ void register_extern(const char* ccalc_name, const char* c_name,
   ffi_func->closure_env = NULL;
 
   env_set(global_env, ccalc_name, v_func(ffi_func), false);
-
 }
 
 ExternFunc* find_extern(const char* name) {
@@ -2690,149 +2693,149 @@ Value call_extern(ExternFunc* ext, Value* args) {
     }
 
     switch (ext->param_types[i]) {
-    case FFI_ANY:
-      if (arg.type == VAL_INT)
-        params[i] = arg.i;
-      else if (arg.type == VAL_DOUBLE) {
-        memcpy(&params[i], &arg.d, sizeof(double));
-      } else if (arg.type == VAL_PTR)
-        params[i] = (long long)arg.ptr;
-      else if (arg.type == VAL_STRING)
-        params[i] = (long long)arg.s;
-      else
-        params[i] = 0;
-      break;
+      case FFI_ANY:
+        if (arg.type == VAL_INT)
+          params[i] = arg.i;
+        else if (arg.type == VAL_DOUBLE) {
+          memcpy(&params[i], &arg.d, sizeof(double));
+        } else if (arg.type == VAL_PTR)
+          params[i] = (long long)arg.ptr;
+        else if (arg.type == VAL_STRING)
+          params[i] = (long long)arg.s;
+        else
+          params[i] = 0;
+        break;
 
-    case FFI_INT:
-    case FFI_LONG:
-    case FFI_CHAR:
-    case FFI_BOOL:
-      if (arg.type == VAL_INT)
-        params[i] = arg.i;
-      else if (arg.type == VAL_DOUBLE)
-        params[i] = (long long)arg.d;
-      else if (arg.type == VAL_BOOL)
-        params[i] = arg.b ? 1 : 0;
-      else
-        return v_error("invalid argument type for FFI int parameter");
-          break;
+      case FFI_INT:
+      case FFI_LONG:
+      case FFI_CHAR:
+      case FFI_BOOL:
+        if (arg.type == VAL_INT)
+          params[i] = arg.i;
+        else if (arg.type == VAL_DOUBLE)
+          params[i] = (long long)arg.d;
+        else if (arg.type == VAL_BOOL)
+          params[i] = arg.b ? 1 : 0;
+        else
+          return v_error("invalid argument type for FFI int parameter");
+        break;
 
-    case FFI_DOUBLE:
-    case FFI_FLOAT: {
-      double dval;
-      if (arg.type == VAL_DOUBLE)
-        dval = arg.d;
-      else if (arg.type == VAL_INT)
-        dval = (double)arg.i;
-      else
-        return v_error("invalid argument type for FFI double parameter");
+      case FFI_DOUBLE:
+      case FFI_FLOAT: {
+        double dval;
+        if (arg.type == VAL_DOUBLE)
+          dval = arg.d;
+        else if (arg.type == VAL_INT)
+          dval = (double)arg.i;
+        else
+          return v_error("invalid argument type for FFI double parameter");
 
-      if (ext->param_types[i] == FFI_FLOAT) {
-        float fval = (float)dval;
-        memcpy(&params[i], &fval, sizeof(float));
-      } else {
-        memcpy(&params[i], &dval, sizeof(double));
+        if (ext->param_types[i] == FFI_FLOAT) {
+          float fval = (float)dval;
+          memcpy(&params[i], &fval, sizeof(float));
+        } else {
+          memcpy(&params[i], &dval, sizeof(double));
+        }
+        break;
       }
-      break;
-    }
 
-    case FFI_STRING:
-      if (arg.type == VAL_STRING)
-        params[i] = (long long)arg.s;
-      else
-        return v_error("invalid argument type for FFI string parameter");
-      break;
+      case FFI_STRING:
+        if (arg.type == VAL_STRING)
+          params[i] = (long long)arg.s;
+        else
+          return v_error("invalid argument type for FFI string parameter");
+        break;
 
-    case FFI_PTR:
-      if (arg.type == VAL_PTR)
-        params[i] = (long long)arg.ptr;
-      else if (arg.type == VAL_STRING)
-        params[i] = (long long)arg.s;
-      else if (arg.type == VAL_INT)
-        params[i] = arg.i;
-      else
-        params[i] = 0;
-      break;
+      case FFI_PTR:
+        if (arg.type == VAL_PTR)
+          params[i] = (long long)arg.ptr;
+        else if (arg.type == VAL_STRING)
+          params[i] = (long long)arg.s;
+        else if (arg.type == VAL_INT)
+          params[i] = arg.i;
+        else
+          params[i] = 0;
+        break;
 
-    case FFI_VOID:
-      break;
+      case FFI_VOID:
+        break;
     }
   }
 
   long long result;
   switch (ext->param_count) {
-  case 0:
-    result = ((long long (*)(void))func)();
-    break;
-  case 1:
-    result = ((long long (*)(long long))func)(params[0]);
-    break;
-  case 2:
-    result =
-      ((long long (*)(long long, long long))func)(params[0], params[1]);
-    break;
-  case 3:
-    result = ((long long (*)(long long, long long, long long))func)(
-                                                                    params[0], params[1], params[2]);
-    break;
-  case 4:
-    result =
-      ((long long (*)(long long, long long, long long, long long))func)(
-                                                                        params[0], params[1], params[2], params[3]);
-    break;
-  case 5:
-    result = ((long long (*)(long long, long long, long long, long long,
-                             long long))func)(params[0], params[1], params[2],
-                                              params[3], params[4]);
-    break;
-  case 6:
-    result = ((long long (*)(long long, long long, long long, long long,
-                             long long, long long))func)(
-                                                         params[0], params[1], params[2], params[3], params[4], params[5]);
-    break;
-  case 7:
-    result = ((long long (*)(long long, long long, long long, long long,
-                             long long, long long, long long))func)(
-                                                                    params[0], params[1], params[2], params[3], params[4], params[5],
-                                                                    params[6]);
-    break;
-  case 8:
-    result =
-      ((long long (*)(long long, long long, long long, long long, long long,
-                      long long, long long, long long))func)(
-                                                             params[0], params[1], params[2], params[3], params[4], params[5],
-                                                             params[6], params[7]);
-    break;
-  default:
-    return v_error("FFI calls support max 8 parameters");
+    case 0:
+      result = ((long long (*)(void))func)();
+      break;
+    case 1:
+      result = ((long long (*)(long long))func)(params[0]);
+      break;
+    case 2:
+      result =
+          ((long long (*)(long long, long long))func)(params[0], params[1]);
+      break;
+    case 3:
+      result = ((long long (*)(long long, long long, long long))func)(
+          params[0], params[1], params[2]);
+      break;
+    case 4:
+      result =
+          ((long long (*)(long long, long long, long long, long long))func)(
+              params[0], params[1], params[2], params[3]);
+      break;
+    case 5:
+      result = ((long long (*)(long long, long long, long long, long long,
+                               long long))func)(params[0], params[1], params[2],
+                                                params[3], params[4]);
+      break;
+    case 6:
+      result = ((long long (*)(long long, long long, long long, long long,
+                               long long, long long))func)(
+          params[0], params[1], params[2], params[3], params[4], params[5]);
+      break;
+    case 7:
+      result = ((long long (*)(long long, long long, long long, long long,
+                               long long, long long, long long))func)(
+          params[0], params[1], params[2], params[3], params[4], params[5],
+          params[6]);
+      break;
+    case 8:
+      result =
+          ((long long (*)(long long, long long, long long, long long, long long,
+                          long long, long long, long long))func)(
+              params[0], params[1], params[2], params[3], params[4], params[5],
+              params[6], params[7]);
+      break;
+    default:
+      return v_error("FFI calls support max 8 parameters");
   }
 
   switch (ext->return_type) {
-  case FFI_INT:
-  case FFI_LONG:
-  case FFI_CHAR:
-  case FFI_BOOL:
-  case FFI_ANY:
-    return v_int(result);
-  case FFI_DOUBLE:
-  case FFI_FLOAT: {
-    if (ext->return_type == FFI_FLOAT) {
-      float fval;
-      memcpy(&fval, &result, sizeof(float));
-      return v_double((double)fval);
-    } else {
-      double dval;
-      memcpy(&dval, &result, sizeof(double));
-      return v_double(dval);
+    case FFI_INT:
+    case FFI_LONG:
+    case FFI_CHAR:
+    case FFI_BOOL:
+    case FFI_ANY:
+      return v_int(result);
+    case FFI_DOUBLE:
+    case FFI_FLOAT: {
+      if (ext->return_type == FFI_FLOAT) {
+        float fval;
+        memcpy(&fval, &result, sizeof(float));
+        return v_double((double)fval);
+      } else {
+        double dval;
+        memcpy(&dval, &result, sizeof(double));
+        return v_double(dval);
+      }
     }
-  }
-  case FFI_STRING:
-    if (result == 0) return v_null();
-    return v_str((const char*)result);
-  case FFI_PTR:
-    return v_ptr((void*)result);
-  case FFI_VOID:
-    return v_null();
+    case FFI_STRING:
+      if (result == 0) return v_null();
+      return v_str((const char*)result);
+    case FFI_PTR:
+      return v_ptr((void*)result);
+    case FFI_VOID:
+      return v_null();
   }
 
   return v_null();
@@ -2975,307 +2978,365 @@ char* value_to_str(Value v) {
 
   char buf[256];
   switch (v.type) {
-  case VAL_INT:
-    snprintf(buf, sizeof(buf), "%lld", v.i);
-    return xstrdup(buf);
-  case VAL_DOUBLE:
-    snprintf(buf, sizeof(buf), "%g", v.d);
-    return xstrdup(buf);
-  case VAL_STRING:
-    return xstrdup(v.s);
-  case VAL_BOOL:
-    return xstrdup(v.b ? "True" : "False");
-  case VAL_NULL:
-    return xstrdup("None");
-  case VAL_PTR:
-    snprintf(buf, sizeof(buf), "<ptr:%p>", v.ptr);
-    return xstrdup(buf);
-  case VAL_ERROR:
-    snprintf(buf, sizeof(buf), "Error: %s", v.s);
-    return xstrdup(buf);
-  default:
-    return xstrdup("<object>");
+    case VAL_INT:
+      snprintf(buf, sizeof(buf), "%lld", v.i);
+      return xstrdup(buf);
+    case VAL_DOUBLE:
+      snprintf(buf, sizeof(buf), "%g", v.d);
+      return xstrdup(buf);
+    case VAL_STRING:
+      return xstrdup(v.s);
+    case VAL_BOOL:
+      return xstrdup(v.b ? "True" : "False");
+    case VAL_NULL:
+      return xstrdup("None");
+    case VAL_PTR:
+      snprintf(buf, sizeof(buf), "<ptr:%p>", v.ptr);
+      return xstrdup(buf);
+    case VAL_ERROR:
+      snprintf(buf, sizeof(buf), "Error: %s", v.s);
+      return xstrdup(buf);
+    default:
+      return xstrdup("<object>");
   }
 }
 
 Value eval(AST* a, Env* env) {
   switch (a->type) {
-  case A_INT:
-    return v_int(a->i);
-  case A_DOUBLE:
-    return v_double(a->d);
-  case A_STRING:
-    return v_str(a->s);
-  case A_BOOL:
-    return v_bool(a->b);
-  case A_VAR:
-    return env_get(env, a->name);
-  case A_STRING_INTERP: {
-    size_t total_len = 0;
-    for (size_t i = 0; i <= a->str_interp.count; i++) {
-      total_len += strlen(a->str_interp.parts[i]);
-    }
-
-    char** expr_strs = xmalloc(sizeof(char*) * a->str_interp.count);
-    for (size_t i = 0; i < a->str_interp.count; i++) {
-      Value expr_val = eval(a->str_interp.exprs[i], env);
-      expr_strs[i] = value_to_str(expr_val);
-      total_len += strlen(expr_strs[i]);
-    }
-    char* result = xmalloc(total_len + 1);
-    result[0] = '\0';
-
-    for (size_t i = 0; i <= a->str_interp.count; i++) {
-      strcat(result, a->str_interp.parts[i]);
-      if (i < a->str_interp.count) {
-        strcat(result, expr_strs[i]);
+    case A_INT:
+      return v_int(a->i);
+    case A_DOUBLE:
+      return v_double(a->d);
+    case A_STRING:
+      return v_str(a->s);
+    case A_BOOL:
+      return v_bool(a->b);
+    case A_VAR:
+      return env_get(env, a->name);
+    case A_STRING_INTERP: {
+      size_t total_len = 0;
+      for (size_t i = 0; i <= a->str_interp.count; i++) {
+        total_len += strlen(a->str_interp.parts[i]);
       }
-    }
 
-    return v_str(result);
-  }
+      char** expr_strs = xmalloc(sizeof(char*) * a->str_interp.count);
+      for (size_t i = 0; i < a->str_interp.count; i++) {
+        Value expr_val = eval(a->str_interp.exprs[i], env);
+        expr_strs[i] = value_to_str(expr_val);
+        total_len += strlen(expr_strs[i]);
+      }
+      char* result = xmalloc(total_len + 1);
+      result[0] = '\0';
 
-  case A_LIST: {
-    Value v = v_list();
-    for (size_t i = 0; i < a->list.count; i++)
-      list_append(v.list, eval(a->list.items[i], env));
-    return v;
-  }
-  case A_TUPLE: {
-    Value* items = xmalloc(sizeof(Value) * a->list.count);
-    for (size_t i = 0; i < a->list.count; i++)
-      items[i] = eval(a->list.items[i], env);
-    return v_tuple(items, a->list.count);
-  }
-  case A_INDEX: {
-    Value obj = eval(a->index.obj, env);
-    Value idx = eval(a->index.idx, env);
-
-    if (obj.type == VAL_ERROR) return obj;
-    if (idx.type == VAL_ERROR) return idx;
-
-    if (obj.type == VAL_ANY && obj.any_val) {
-      obj = *obj.any_val;
-    }
-
-    if (obj.type == VAL_LIST && idx.type == VAL_INT) {
-      if (idx.i < 0) {
-        return v_error("list index cannot be negative");
-      }
-      if ((size_t)idx.i >= obj.list->size) {
-        return v_error("list index out of range");
-      }
-      return obj.list->items[idx.i];
-    }
-    if (obj.type == VAL_TUPLE && idx.type == VAL_INT) {
-      if (idx.i < 0) {
-        return v_error("tuple index cannot be negative");
-      }
-      if ((size_t)idx.i >= obj.tuple->size) {
-        return v_error("tuple index out of range");
-      }
-      return obj.tuple->items[idx.i];
-    }
-    if (obj.type == VAL_STRING && idx.type == VAL_INT) {
-      size_t len = strlen(obj.s);
-      if (idx.i < 0) {
-        return v_error("string index cannot be negative");
-      }
-      if ((size_t)idx.i >= len) {
-        return v_error("string index out of range");
-      }
-      char buf[2] = {obj.s[idx.i], '\0'};
-      return v_str(buf);
-    }
-    return v_error("cannot index non-sequence or with non-integer");
-  }
-  case A_METHOD: {
-    Value obj = eval(a->method.obj, env);
-    Value* args = NULL;
-    if (a->method.argc > 0) {
-      args = xmalloc(sizeof(Value) * a->method.argc);
-      for (size_t i = 0; i < a->method.argc; i++)
-        args[i] = eval(a->method.args[i], env);
-    }
-    Value result = call_method(obj, a->method.method, args, a->method.argc);
-    return result;
-  }
-  case A_BINOP: {
-    Value l = eval(a->bin.l, env);
-    Value r = eval(a->bin.r, env);
-
-    if (l.type == VAL_ERROR) return l;
-    if (r.type == VAL_ERROR) return r;
-
-    if (l.type == VAL_ANY && l.any_val) {
-      l = *l.any_val;
-    }
-    if (r.type == VAL_ANY && r.any_val) {
-      r = *r.any_val;
-    }
-
-    if (a->bin.op == 'E') {
-      if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i == r.i);
-      if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b == r.b);
-      if (l.type == VAL_PTR && r.type == VAL_PTR)
-        return v_bool(l.ptr == r.ptr);
-      if (l.type == VAL_STRING && r.type == VAL_STRING)
-        return v_bool(strcmp(l.s, r.s) == 0);
-      return v_bool(false);
-    }
-    if (a->bin.op == 'N') {
-      if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i != r.i);
-      if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b != r.b);
-      if (l.type == VAL_PTR && r.type == VAL_PTR)
-        return v_bool(l.ptr != r.ptr);
-      if (l.type == VAL_STRING && r.type == VAL_STRING)
-        return v_bool(strcmp(l.s, r.s) != 0);
-      return v_bool(true);
-    }
-    if (a->bin.op == '<') {
-      if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i < r.i);
-      if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
-        return v_bool(value_to_double(l) < value_to_double(r));
-      return v_bool(false);
-    }
-    if (a->bin.op == '>') {
-      if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i > r.i);
-      if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
-        return v_bool(value_to_double(l) > value_to_double(r));
-      return v_bool(false);
-    }
-    if (a->bin.op == 'L') {
-      if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i <= r.i);
-      if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
-        return v_bool(value_to_double(l) <= value_to_double(r));
-      return v_bool(false);
-    }
-    if (a->bin.op == 'G') {
-      if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i >= r.i);
-      if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
-        return v_bool(value_to_double(l) >= value_to_double(r));
-      return v_bool(false);
-    }
-    if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE) {
-      double ld = value_to_double(l);
-      double rd = value_to_double(r);
-      if (a->bin.op == '+') return v_double(ld + rd);
-      if (a->bin.op == '-') return v_double(ld - rd);
-      if (a->bin.op == '*') return v_double(ld * rd);
-      if (a->bin.op == '/') {
-        if (rd == 0.0) return v_error("division by zero");
-        return v_double(ld / rd);
-      }
-      if (a->bin.op == '^') return v_double(pow(ld, rd));
-    }
-    if (l.type == VAL_INT && r.type == VAL_INT) {
-      if (a->bin.op == '+') return v_int(l.i + r.i);
-      if (a->bin.op == '-') return v_int(l.i - r.i);
-      if (a->bin.op == '*') return v_int(l.i * r.i);
-      if (a->bin.op == '/') {
-        if (r.i == 0) return v_error("division by zero");
-        return v_int(l.i / r.i);
-      }
-      if (a->bin.op == '%') {
-        if (r.i == 0) return v_error("modulo by zero");
-        return v_int(l.i % r.i);
-      }
-      if (a->bin.op == '^') {
-        if (r.i < 0) return v_int(0);
-        long long result = 1;
-        long long base = l.i;
-        long long exp = r.i;
-        while (exp > 0) {
-          if (exp & 1) result *= base;
-          base *= base;
-          exp >>= 1;
+      for (size_t i = 0; i <= a->str_interp.count; i++) {
+        strcat(result, a->str_interp.parts[i]);
+        if (i < a->str_interp.count) {
+          strcat(result, expr_strs[i]);
         }
-        return v_int(result);
       }
+
+      return v_str(result);
     }
-    if (a->bin.op == '+' && l.type == VAL_STRING && r.type == VAL_STRING) {
-      char* s = xmalloc(strlen(l.s) + strlen(r.s) + 1);
-      strcpy(s, l.s);
-      strcat(s, r.s);
-      Value v;
-      memset(&v, 0, sizeof(v));
-      v.type = VAL_STRING;
-      v.s = s;
+
+    case A_LIST: {
+      Value v = v_list();
+      for (size_t i = 0; i < a->list.count; i++)
+        list_append(v.list, eval(a->list.items[i], env));
       return v;
     }
-    return v_error("invalid operand types for operation");
-  }
-  case A_CALL: {
-    Value f = eval(a->call.fn, env);
+    case A_TUPLE: {
+      Value* items = xmalloc(sizeof(Value) * a->list.count);
+      for (size_t i = 0; i < a->list.count; i++)
+        items[i] = eval(a->list.items[i], env);
+      return v_tuple(items, a->list.count);
+    }
+    case A_INDEX: {
+      Value obj = eval(a->index.obj, env);
+      Value idx = eval(a->index.idx, env);
 
-    if (a->call.fn->type == A_VAR) {
-      ExternFunc* ext = find_extern(a->call.fn->name);
-      if (ext) {
-        if (a->call.argc != ext->param_count) {
-          return v_error("extern function argument count mismatch");
-        }
-        Value* vals = xmalloc(sizeof(Value) * a->call.argc);
-        for (size_t i = 0; i < a->call.argc; i++)
-          vals[i] = eval(a->call.args[i], env);
-        return call_extern(ext, vals);
+      if (obj.type == VAL_ERROR) return obj;
+      if (idx.type == VAL_ERROR) return idx;
+
+      if (obj.type == VAL_ANY && obj.any_val) {
+        obj = *obj.any_val;
       }
+
+      if (obj.type == VAL_LIST && idx.type == VAL_INT) {
+        if (idx.i < 0) {
+          return v_error("list index cannot be negative");
+        }
+        if ((size_t)idx.i >= obj.list->size) {
+          return v_error("list index out of range");
+        }
+        return obj.list->items[idx.i];
+      }
+      if (obj.type == VAL_TUPLE && idx.type == VAL_INT) {
+        if (idx.i < 0) {
+          return v_error("tuple index cannot be negative");
+        }
+        if ((size_t)idx.i >= obj.tuple->size) {
+          return v_error("tuple index out of range");
+        }
+        return obj.tuple->items[idx.i];
+      }
+      if (obj.type == VAL_STRING && idx.type == VAL_INT) {
+        size_t len = strlen(obj.s);
+        if (idx.i < 0) {
+          return v_error("string index cannot be negative");
+        }
+        if ((size_t)idx.i >= len) {
+          return v_error("string index out of range");
+        }
+        char buf[2] = {obj.s[idx.i], '\0'};
+        return v_str(buf);
+      }
+      return v_error("cannot index non-sequence or with non-integer");
+    }
+    case A_METHOD: {
+      Value obj = eval(a->method.obj, env);
+      Value* args = NULL;
+      if (a->method.argc > 0) {
+        args = xmalloc(sizeof(Value) * a->method.argc);
+        for (size_t i = 0; i < a->method.argc; i++)
+          args[i] = eval(a->method.args[i], env);
+      }
+      Value result = call_method(obj, a->method.method, args, a->method.argc);
+      return result;
+    }
+    case A_BINOP: {
+      Value l = eval(a->bin.l, env);
+      Value r = eval(a->bin.r, env);
+
+      if (l.type == VAL_ERROR) return l;
+      if (r.type == VAL_ERROR) return r;
+
+      if (l.type == VAL_ANY && l.any_val) {
+        l = *l.any_val;
+      }
+      if (r.type == VAL_ANY && r.any_val) {
+        r = *r.any_val;
+      }
+
+      if (a->bin.op == 'E') {
+        if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i == r.i);
+        if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b == r.b);
+        if (l.type == VAL_PTR && r.type == VAL_PTR)
+          return v_bool(l.ptr == r.ptr);
+        if (l.type == VAL_STRING && r.type == VAL_STRING)
+          return v_bool(strcmp(l.s, r.s) == 0);
+        return v_bool(false);
+      }
+      if (a->bin.op == 'N') {
+        if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i != r.i);
+        if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b != r.b);
+        if (l.type == VAL_PTR && r.type == VAL_PTR)
+          return v_bool(l.ptr != r.ptr);
+        if (l.type == VAL_STRING && r.type == VAL_STRING)
+          return v_bool(strcmp(l.s, r.s) != 0);
+        return v_bool(true);
+      }
+      if (a->bin.op == '<') {
+        if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i < r.i);
+        if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
+          return v_bool(value_to_double(l) < value_to_double(r));
+        return v_bool(false);
+      }
+      if (a->bin.op == '>') {
+        if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i > r.i);
+        if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
+          return v_bool(value_to_double(l) > value_to_double(r));
+        return v_bool(false);
+      }
+      if (a->bin.op == 'L') {
+        if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i <= r.i);
+        if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
+          return v_bool(value_to_double(l) <= value_to_double(r));
+        return v_bool(false);
+      }
+      if (a->bin.op == 'G') {
+        if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i >= r.i);
+        if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
+          return v_bool(value_to_double(l) >= value_to_double(r));
+        return v_bool(false);
+      }
+      if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE) {
+        double ld = value_to_double(l);
+        double rd = value_to_double(r);
+        if (a->bin.op == '+') return v_double(ld + rd);
+        if (a->bin.op == '-') return v_double(ld - rd);
+        if (a->bin.op == '*') return v_double(ld * rd);
+        if (a->bin.op == '/') {
+          if (rd == 0.0) return v_error("division by zero");
+          return v_double(ld / rd);
+        }
+        if (a->bin.op == '^') return v_double(pow(ld, rd));
+      }
+      if (l.type == VAL_INT && r.type == VAL_INT) {
+        if (a->bin.op == '+') return v_int(l.i + r.i);
+        if (a->bin.op == '-') return v_int(l.i - r.i);
+        if (a->bin.op == '*') return v_int(l.i * r.i);
+        if (a->bin.op == '/') {
+          if (r.i == 0) return v_error("division by zero");
+          return v_int(l.i / r.i);
+        }
+        if (a->bin.op == '%') {
+          if (r.i == 0) return v_error("modulo by zero");
+          return v_int(l.i % r.i);
+        }
+        if (a->bin.op == '^') {
+          if (r.i < 0) return v_int(0);
+          long long result = 1;
+          long long base = l.i;
+          long long exp = r.i;
+          while (exp > 0) {
+            if (exp & 1) result *= base;
+            base *= base;
+            exp >>= 1;
+          }
+          return v_int(result);
+        }
+      }
+      if (a->bin.op == '+' && l.type == VAL_STRING && r.type == VAL_STRING) {
+        char* s = xmalloc(strlen(l.s) + strlen(r.s) + 1);
+        strcpy(s, l.s);
+        strcat(s, r.s);
+        Value v;
+        memset(&v, 0, sizeof(v));
+        v.type = VAL_STRING;
+        v.s = s;
+        return v;
+      }
+      return v_error("invalid operand types for operation");
+    }
+    case A_CALL: {
+      Value f = eval(a->call.fn, env);
+
+      if (a->call.fn->type == A_VAR) {
+        ExternFunc* ext = find_extern(a->call.fn->name);
+        if (ext) {
+          if (a->call.argc != ext->param_count) {
+            return v_error("extern function argument count mismatch");
+          }
+          Value* vals = xmalloc(sizeof(Value) * a->call.argc);
+          for (size_t i = 0; i < a->call.argc; i++)
+            vals[i] = eval(a->call.args[i], env);
+          return call_extern(ext, vals);
+        }
+      }
+
+      if (f.type != VAL_FUNC) return v_null();
+      return call(f.fn, a->call.args, a->call.argc, env);
+    }
+    case A_LAMBDA: {
+      Function* f = xmalloc(sizeof(Function));
+      f->params = a->lambda.params;
+      f->arity = a->lambda.arity;
+      f->body = a->lambda.body;
+      f->is_builtin = false;
+      f->closure_env = env;
+      return v_func(f);
+    }
+    case A_ASSIGN: {
+      Value v = eval(a->assign.value, env);
+      env_set(env, a->assign.name, v, false);
+      return v;
+    }
+    case A_IF: {
+      Value cond = eval(a->ifelse.cond, env);
+      if (value_is_truthy(cond)) {
+        return eval(a->ifelse.then_block, env);
+      } else if (a->ifelse.else_block) {
+        return eval(a->ifelse.else_block, env);
+      }
+      return v_null();
     }
 
-    if (f.type != VAL_FUNC) return v_null();
-    return call(f.fn, a->call.args, a->call.argc, env);
-  }
-  case A_LAMBDA: {
-    Function* f = xmalloc(sizeof(Function));
-    f->params = a->lambda.params;
-    f->arity = a->lambda.arity;
-    f->body = a->lambda.body;
-    f->is_builtin = false;
-    f->closure_env = env;
-    return v_func(f);
-  }
-  case A_ASSIGN: {
-    Value v = eval(a->assign.value, env);
-    env_set(env, a->assign.name, v, false);
-    return v;
-  }
-  case A_IF: {
-    Value cond = eval(a->ifelse.cond, env);
-    if (value_is_truthy(cond)) {
-      return eval(a->ifelse.then_block, env);
-    } else if (a->ifelse.else_block) {
-      return eval(a->ifelse.else_block, env);
-    }
-    return v_null();
-  }
+    case A_RANGE: {
+      Value start = eval(a->range.start, env);
+      Value end = eval(a->range.end, env);
 
-  case A_RANGE: {
-    Value start = eval(a->range.start, env);
-    Value end = eval(a->range.end, env);
+      if (start.type != VAL_INT || end.type != VAL_INT) {
+        return v_error("range requires integer bounds");
+      }
 
-    if (start.type != VAL_INT || end.type != VAL_INT) {
-      return v_error("range requires integer bounds");
+      Value result = v_list();
+      for (long long i = start.i; i < end.i; i++) {
+        list_append(result.list, v_int(i));
+      }
+      return result;
     }
 
-    Value result = v_list();
-    for (long long i = start.i; i < end.i; i++) {
-      list_append(result.list, v_int(i));
+    case A_FOR: {
+      Value result = v_null();
+      Value iter_val = eval(a->forloop.iter, env);
+
+      if (iter_val.type == VAL_ERROR) {
+        return iter_val;
+      }
+
+      if (iter_val.type == VAL_LIST) {
+        for (size_t i = 0; i < iter_val.list->size; i++) {
+          env_set(env, a->forloop.var, iter_val.list->items[i], false);
+          result = eval(a->forloop.body, env);
+
+          if (result.cf == CF_BREAK) {
+            result.cf = CF_NONE;
+            break;
+          }
+          if (result.cf == CF_CONTINUE) {
+            result.cf = CF_NONE;
+            continue;
+          }
+          if (result.cf == CF_RETURN) {
+            return result;
+          }
+        }
+      } else if (iter_val.type == VAL_TUPLE) {
+        for (size_t i = 0; i < iter_val.tuple->size; i++) {
+          env_set(env, a->forloop.var, iter_val.tuple->items[i], false);
+          result = eval(a->forloop.body, env);
+
+          if (result.cf == CF_BREAK) {
+            result.cf = CF_NONE;
+            break;
+          }
+          if (result.cf == CF_CONTINUE) {
+            result.cf = CF_NONE;
+            continue;
+          }
+          if (result.cf == CF_RETURN) {
+            return result;
+          }
+        }
+      } else if (iter_val.type == VAL_STRING) {
+        for (size_t i = 0; i < strlen(iter_val.s); i++) {
+          char buf[2] = {iter_val.s[i], '\0'};
+          env_set(env, a->forloop.var, v_str(buf), false);
+          result = eval(a->forloop.body, env);
+
+          if (result.cf == CF_BREAK) {
+            result.cf = CF_NONE;
+            break;
+          }
+          if (result.cf == CF_CONTINUE) {
+            result.cf = CF_NONE;
+            continue;
+          }
+          if (result.cf == CF_RETURN) {
+            return result;
+          }
+        }
+      } else {
+        return v_error(
+            "for loop requires iterable (list, tuple, string, or range)");
+      }
+      return result;
     }
-    return result;
-  }
 
-  case A_FOR: {
-    Value result = v_null();
-    Value iter_val = eval(a->forloop.iter, env);
-
-    if (iter_val.type == VAL_ERROR) {
-      return iter_val;
-    }
-
-    if (iter_val.type == VAL_LIST) {
-      for (size_t i = 0; i < iter_val.list->size; i++) {
-        env_set(env, a->forloop.var, iter_val.list->items[i], false);
-        result = eval(a->forloop.body, env);
-
+    case A_WHILE: {
+      Value result = v_null();
+      while (value_is_truthy(eval(a->whileloop.cond, env))) {
+        result = eval(a->whileloop.body, env);
         if (result.cf == CF_BREAK) {
           result.cf = CF_NONE;
           break;
@@ -3288,202 +3349,145 @@ Value eval(AST* a, Env* env) {
           return result;
         }
       }
-    } else if (iter_val.type == VAL_TUPLE) {
-      for (size_t i = 0; i < iter_val.tuple->size; i++) {
-        env_set(env, a->forloop.var, iter_val.tuple->items[i], false);
-        result = eval(a->forloop.body, env);
-
-        if (result.cf == CF_BREAK) {
-          result.cf = CF_NONE;
-          break;
-        }
-        if (result.cf == CF_CONTINUE) {
-          result.cf = CF_NONE;
-          continue;
-        }
-        if (result.cf == CF_RETURN) {
+      return result;
+    }
+    case A_BLOCK: {
+      Value result = v_null();
+      for (size_t i = 0; i < a->block.count; i++) {
+        result = eval(a->block.stmts[i], env);
+        if (result.cf != CF_NONE) {
           return result;
         }
       }
-    } else if (iter_val.type == VAL_STRING) {
-      for (size_t i = 0; i < strlen(iter_val.s); i++) {
-        char buf[2] = {iter_val.s[i], '\0'};
-        env_set(env, a->forloop.var, v_str(buf), false);
-        result = eval(a->forloop.body, env);
-
-        if (result.cf == CF_BREAK) {
-          result.cf = CF_NONE;
-          break;
-        }
-        if (result.cf == CF_CONTINUE) {
-          result.cf = CF_NONE;
-          continue;
-        }
-        if (result.cf == CF_RETURN) {
-          return result;
-        }
-      }
-    } else {
-      return v_error("for loop requires iterable (list, tuple, string, or range)");
+      return result;
     }
-    return result;
-  }
-
-  case A_WHILE: {
-    Value result = v_null();
-    while (value_is_truthy(eval(a->whileloop.cond, env))) {
-      result = eval(a->whileloop.body, env);
-      if (result.cf == CF_BREAK) {
-        result.cf = CF_NONE;
-        break;
-      }
-      if (result.cf == CF_CONTINUE) {
-        result.cf = CF_NONE;
-        continue;
-      }
-      if (result.cf == CF_RETURN) {
-        return result;
-      }
+    case A_RETURN: {
+      Value v = a->ret.value ? eval(a->ret.value, env) : v_null();
+      return v_return(v);
     }
-    return result;
-  }
-  case A_BLOCK: {
-    Value result = v_null();
-    for (size_t i = 0; i < a->block.count; i++) {
-      result = eval(a->block.stmts[i], env);
-      if (result.cf != CF_NONE) {
-        return result;
-      }
+    case A_BREAK: {
+      return v_break();
     }
-    return result;
-  }
-  case A_RETURN: {
-    Value v = a->ret.value ? eval(a->ret.value, env) : v_null();
-    return v_return(v);
-  }
-  case A_BREAK: {
-    return v_break();
-  }
-  case A_CONTINUE: {
-    return v_continue();
-  }
-  case A_STRUCT_DEF: {
-    Value v;
-    v.type = VAL_STRUCT_DEF;
-    v.struct_def = xmalloc(sizeof(StructDef));
-    v.struct_def->name = a->struct_def.name;
-    v.struct_def->fields = a->struct_def.fields;
-    v.struct_def->field_count = a->struct_def.count;
+    case A_CONTINUE: {
+      return v_continue();
+    }
+    case A_STRUCT_DEF: {
+      Value v;
+      v.type = VAL_STRUCT_DEF;
+      v.struct_def = xmalloc(sizeof(StructDef));
+      v.struct_def->name = a->struct_def.name;
+      v.struct_def->fields = a->struct_def.fields;
+      v.struct_def->field_count = a->struct_def.count;
 
-    size_t mcount = a->struct_def.method_count;
-    v.struct_def->method_count = mcount;
-    v.struct_def->methods = xmalloc(sizeof(Function*) * mcount);
-    v.struct_def->method_names = xmalloc(sizeof(char*) * mcount);
+      size_t mcount = a->struct_def.method_count;
+      v.struct_def->method_count = mcount;
+      v.struct_def->methods = xmalloc(sizeof(Function*) * mcount);
+      v.struct_def->method_names = xmalloc(sizeof(char*) * mcount);
 
-    for (size_t i = 0; i < mcount; i++) {
-      AST* assign = a->struct_def.methods[i];
-      if (assign->type == A_ASSIGN) {
-        Value val = eval(assign->assign.value, env);
-        if (val.type == VAL_FUNC) {
-          v.struct_def->methods[i] = val.fn;
-          v.struct_def->method_names[i] = assign->assign.name;
-        } else {
-          v.struct_def->methods[i] = NULL;
+      for (size_t i = 0; i < mcount; i++) {
+        AST* assign = a->struct_def.methods[i];
+        if (assign->type == A_ASSIGN) {
+          Value val = eval(assign->assign.value, env);
+          if (val.type == VAL_FUNC) {
+            v.struct_def->methods[i] = val.fn;
+            v.struct_def->method_names[i] = assign->assign.name;
+          } else {
+            v.struct_def->methods[i] = NULL;
+          }
         }
       }
-    }
 
-    env_set(env, a->struct_def.name, v, false);
-    return v;
-  }
-  case A_STRUCT_INIT: {
-    Value def_val = env_get(env, a->struct_init.name);
-    if (def_val.type != VAL_STRUCT_DEF) {
-      return v_error("struct not defined");
+      env_set(env, a->struct_def.name, v, false);
+      return v;
     }
-    StructDef* def = def_val.struct_def;
-    Value* values = xmalloc(sizeof(Value) * def->field_count);
-    for (size_t i = 0; i < def->field_count; i++) values[i] = v_null();
+    case A_STRUCT_INIT: {
+      Value def_val = env_get(env, a->struct_init.name);
+      if (def_val.type != VAL_STRUCT_DEF) {
+        return v_error("struct not defined");
+      }
+      StructDef* def = def_val.struct_def;
+      Value* values = xmalloc(sizeof(Value) * def->field_count);
+      for (size_t i = 0; i < def->field_count; i++) values[i] = v_null();
 
-    for (size_t i = 0; i < a->struct_init.count; i++) {
-      char* fname = a->struct_init.fields[i];
-      bool found = false;
-      for (size_t j = 0; j < def->field_count; j++) {
-        if (strcmp(fname, def->fields[j]) == 0) {
-          values[j] = eval(a->struct_init.values[i], env);
-          found = true;
-          break;
+      for (size_t i = 0; i < a->struct_init.count; i++) {
+        char* fname = a->struct_init.fields[i];
+        bool found = false;
+        for (size_t j = 0; j < def->field_count; j++) {
+          if (strcmp(fname, def->fields[j]) == 0) {
+            values[j] = eval(a->struct_init.values[i], env);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          return v_error("field not found in struct");
         }
       }
-      if (!found) {
-        return v_error("field not found in struct");
-      }
-    }
 
-    Value v;
-    v.type = VAL_STRUCT;
-    v.struct_val = xmalloc(sizeof(StructVal));
-    v.struct_val->def = def;
-    v.struct_val->values = values;
-    return v;
-  }
-  case A_MEMBER: {
-    Value obj = eval(a->member.obj, env);
-    if (obj.type == VAL_STRUCT) {
-      for (size_t i = 0; i < obj.struct_val->def->field_count; i++) {
-        if (strcmp(a->member.member, obj.struct_val->def->fields[i]) == 0) {
-          return obj.struct_val->values[i];
+      Value v;
+      v.type = VAL_STRUCT;
+      v.struct_val = xmalloc(sizeof(StructVal));
+      v.struct_val->def = def;
+      v.struct_val->values = values;
+      return v;
+    }
+    case A_MEMBER: {
+      Value obj = eval(a->member.obj, env);
+      if (obj.type == VAL_STRUCT) {
+        for (size_t i = 0; i < obj.struct_val->def->field_count; i++) {
+          if (strcmp(a->member.member, obj.struct_val->def->fields[i]) == 0) {
+            return obj.struct_val->values[i];
+          }
         }
       }
+      return call_method(obj, a->member.member, NULL, 0);
     }
-    return call_method(obj, a->member.member, NULL, 0);
-  }
-  case A_MEMBER_ASSIGN: {
-    Value val = eval(a->member_assign.value, env);
-    if (val.type == VAL_ERROR) return val;
-    Value obj = eval(a->member_assign.obj, env);
-    if (obj.type == VAL_STRUCT) {
-      StructDef* def = obj.struct_val->def;
-      for (size_t i = 0; i < def->field_count; i++) {
-        if (strcmp(a->member_assign.member, def->fields[i]) == 0) {
-          obj.struct_val->values[i] = val;
-          return val;
+    case A_MEMBER_ASSIGN: {
+      Value val = eval(a->member_assign.value, env);
+      if (val.type == VAL_ERROR) return val;
+      Value obj = eval(a->member_assign.obj, env);
+      if (obj.type == VAL_STRUCT) {
+        StructDef* def = obj.struct_val->def;
+        for (size_t i = 0; i < def->field_count; i++) {
+          if (strcmp(a->member_assign.member, def->fields[i]) == 0) {
+            obj.struct_val->values[i] = val;
+            return val;
+          }
+        }
+        return v_error("field not found in struct for assignment");
+      }
+
+      return v_error("cannot assign to member of non-struct");
+    }
+
+    case A_ASSIGN_UNPACK: {
+      Value rhs = eval(a->assign_unpack.value, env);
+      if (rhs.type != VAL_TUPLE && rhs.type != VAL_LIST) {
+        return v_error("cannot unpack non-sequence");
+      }
+      size_t count = (rhs.type == VAL_TUPLE) ? rhs.tuple->size : rhs.list->size;
+      Value* items =
+          (rhs.type == VAL_TUPLE) ? rhs.tuple->items : rhs.list->items;
+
+      if (count != a->assign_unpack.count) {
+        return v_error("unpacking count mismatch");
+      }
+
+      for (size_t i = 0; i < count; i++) {
+        env_set(env, a->assign_unpack.names[i], items[i], false);
+      }
+      return rhs;
+    }
+    case A_MATCH: {
+      Value target = eval(a->match.value, env);
+      for (size_t i = 0; i < a->match.case_count; i++) {
+        Value pattern_val = eval(a->match.patterns[i], env);
+        if (values_equal(target, pattern_val)) {
+          return eval(a->match.bodies[i], env);
         }
       }
-      return v_error("field not found in struct for assignment");
+      return v_null();
     }
-
-    return v_error("cannot assign to member of non-struct");
-  }
-
-  case A_ASSIGN_UNPACK: {
-    Value rhs = eval(a->assign_unpack.value, env);
-    if (rhs.type != VAL_TUPLE && rhs.type != VAL_LIST) {
-      return v_error("cannot unpack non-sequence");
-    }
-    size_t count = (rhs.type == VAL_TUPLE) ? rhs.tuple->size : rhs.list->size;
-    Value* items =
-      (rhs.type == VAL_TUPLE) ? rhs.tuple->items : rhs.list->items;
-
-    if (count != a->assign_unpack.count) {
-      return v_error("unpacking count mismatch");
-    }
-
-    for (size_t i = 0; i < count; i++) {
-      env_set(env, a->assign_unpack.names[i], items[i], false);
-    }
-    return rhs;
-  }
-  case A_MATCH: {
-    Value target = eval(a->match.value, env);
-    for (size_t i = 0; i < a->match.case_count; i++) {
-      Value pattern_val = eval(a->match.patterns[i], env);
-      if (values_equal(target, pattern_val)) {
-        return eval(a->match.bodies[i], env);
-      }
-    }
-    return v_null();
-  }
   }
   return v_null();
 }
@@ -3784,10 +3788,10 @@ static char* build_and_test(const char* a, const char* b) {
 }
 
 /* TODO: For now hard code the extenstion  */
-char *force_ext(const char *name) {
-  char *ext = ".calc";
+char* force_ext(const char* name) {
+  char* ext = ".calc";
   if (!name) return NULL;
-  char *buf = malloc(sizeof(*buf) + strlen(name) + strlen(ext));
+  char* buf = malloc(sizeof(*buf) + strlen(name) + strlen(ext));
   if (!buf) return NULL;
   strcpy(buf, name);
   strcat(buf, ".calc");
@@ -3795,7 +3799,6 @@ char *force_ext(const char *name) {
 }
 
 char* resolve_import_path(const char* import_name, const char* current_file) {
-
 #ifdef BUILD_DIR
   {
     const char* build_dir = STR(BUILD_DIR);
@@ -3811,8 +3814,7 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
       if (!exet) {
         char* p2 = build_and_test(build_dir, rel);
         if (p2) return p2;
-      }
-      else{
+      } else {
         char* p2 = build_and_test(build_dir, exet);
         if (p2) return p2;
       }
@@ -4003,7 +4005,7 @@ void run_file(const char* filename) {
 
       const char* import_name = tok.text;
       char* resolved_path =
-        resolve_import_path(import_name, current_loc.filename);
+          resolve_import_path(import_name, current_loc.filename);
 
       if (!resolved_path) {
         error_at(tok.loc, "could not find import file: %s", import_name);
@@ -4147,13 +4149,16 @@ void run_file(const char* filename) {
         if (rhs.type != VAL_TUPLE && rhs.type != VAL_LIST) {
           error_at(stmt->loc, "cannot unpack non-sequence");
         } else {
-          size_t count = (rhs.type == VAL_TUPLE) ? rhs.tuple->size : rhs.list->size;
-          Value* items = (rhs.type == VAL_TUPLE) ? rhs.tuple->items : rhs.list->items;
+          size_t count =
+              (rhs.type == VAL_TUPLE) ? rhs.tuple->size : rhs.list->size;
+          Value* items =
+              (rhs.type == VAL_TUPLE) ? rhs.tuple->items : rhs.list->items;
           if (count != stmt->assign_unpack.count) {
             error_at(stmt->loc, "unpacking count mismatch");
           } else {
             for (size_t i = 0; i < count; i++) {
-              env_set(global_env, stmt->assign_unpack.names[i], items[i], is_const);
+              env_set(global_env, stmt->assign_unpack.names[i], items[i],
+                      is_const);
             }
           }
         }

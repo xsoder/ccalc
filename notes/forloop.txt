@@ -14,6 +14,18 @@ f(x) = {
 }
 ```
 
+## Iterator implementation
+
+Iterators is finally achieved.
+
+```
+for i: 0..10 {
+    # Do what u want with i.
+    print(i)
+}
+```
+
+
 ## Variadic implementation
 
 Variadic could be implementated with ... I opted for simple approach of $.
