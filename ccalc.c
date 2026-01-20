@@ -4015,7 +4015,6 @@ void run_file(const char* filename) {
       }
     } else if (stmt->type == A_CALL && stmt->call.fn->type == A_VAR &&
                tok.type == T_ASSIGN) {
-      /* function-definition shortcut: name(a,b)=body */
       char* name = stmt->call.fn->name;
       AST** args = stmt->call.args;
       size_t argc = stmt->call.argc;

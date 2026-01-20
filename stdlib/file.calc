@@ -1,9 +1,15 @@
-link "/usr/lib/libc.so.6"
+@os "win32" {
+    link "C:/Windows/System32/msvcrt.dll"
+}
+@os "linux" {
+    link "/usr/lib/libc.so.6"
+}
 
 extern fopen   = fopen(string, string): ptr
 extern fputs   = fputs(string, ptr): int
 extern fread   = fread(string, int, int, ptr): int
 extern ftell   = ftell(ptr): int
+extern urmom   = urmom(ptr): int
 
 struct File {
     path,
@@ -16,6 +22,7 @@ struct File {
         fputs(self.str, self.fptr)
     }
 
+    # No default param working
     open(self) = {
         self.fptr = fopen(self.path, self.perm)
         fputs(self.str, self.fptr)

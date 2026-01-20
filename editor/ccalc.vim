@@ -11,8 +11,8 @@ function! s:SetupSyntax()
   syntax clear
 
 
-  syntax keyword ccalcKeyword if else while lambda const import return break continue True False struct
-  syntax keyword ccalcKeyword const import link extern self @ os
+  syntax keyword ccalcKeyword if else while lambda const import return break continue True False struct os
+  syntax keyword ccalcKeyword const import link extern self
   syntax keyword ccalcBoolean True False
   syntax keyword ccalcNull None
   syntax keyword ccalcBuiltin print type len range tuple help assert test
@@ -23,6 +23,7 @@ function! s:SetupSyntax()
   syntax match ccalcOperator "\v\+"
   syntax match ccalcOperator "\v-"
   syntax match ccalcOperator "\v\*"
+  syntax match ccalcOperator "\v\@"
   syntax match ccalcOperator "\v/"
   syntax match ccalcOperator "\v\%"
   syntax match ccalcOperator "\v\="
@@ -68,6 +69,7 @@ function! s:SetupSyntax()
   highlight default link ccalcDelimiter Delimiter
   highlight default link ccalcLambda Special
   highlight default link ccalcArrow Operator
+  highlight default link ccalcDecorator Operator
   highlight default link ccalcError Error
 
   let b:current_syntax = "ccalc"
