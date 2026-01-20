@@ -1,10 +1,5 @@
 x = [ "buffer", "test", "nun", "mom" ]
 
-int_to_bool(val) = {
-    if val != -1: return "True"
-    return "False"
-}
-
 is_palindrome(buffer) = {
     rev = ""
     i = 0
@@ -12,11 +7,11 @@ is_palindrome(buffer) = {
         rev = rev + buffer[len(buffer) - 1 - i]
         i = i + 1
     }
-    if rev == buffer: { return 1  }
-    else: { return 0 }
+    if rev == buffer: { return bool(1)  }
+    else: { return bool(0) }
 }
 
 for q: (x) {
-    e = int_to_bool(is_palindrome(q))
+    e = is_palindrome(q)
     print("Is string '{q}' palindrome => {e}")
 }

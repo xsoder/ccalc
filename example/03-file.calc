@@ -5,6 +5,6 @@ file = File {
     perm: "w"
 }
 
-file.create()
+file.open()
 file.write("Ur mom")
 file.close()
