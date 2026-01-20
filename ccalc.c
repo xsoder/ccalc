@@ -91,7 +91,7 @@ void mark_file_imported(const char* filename) {
   if (import_tracker.count >= import_tracker.capacity) {
     import_tracker.capacity *= 2;
     import_tracker.files =
-        realloc(import_tracker.files, sizeof(char*) * import_tracker.capacity);
+      realloc(import_tracker.files, sizeof(char*) * import_tracker.capacity);
   }
   import_tracker.files[import_tracker.count++] = strdup(filename);
 }
@@ -405,60 +405,60 @@ bool value_is_truthy(Value v) {
     return value_is_truthy(*v.any_val);
   }
   switch (v.type) {
-    case VAL_NULL:
-      return false;
-    case VAL_ERROR:
-      return false;
-    case VAL_BOOL:
-      return v.b;
-    case VAL_INT:
-      return v.i != 0;
-    case VAL_DOUBLE:
-      return v.d != 0.0;
-    case VAL_STRING:
-      return v.s && v.s[0] != 0;
-    case VAL_LIST:
-      return v.list->size > 0;
-    case VAL_TUPLE:
-      return v.tuple->size > 0;
-    case VAL_FUNC:
-      return true;
-    case VAL_PTR:
-      return v.ptr != NULL;
-    case VAL_STRUCT_DEF:
-      return true;
-    case VAL_STRUCT:
-      return true;
-    case VAL_ANY:
-      return false;
+  case VAL_NULL:
+    return false;
+  case VAL_ERROR:
+    return false;
+  case VAL_BOOL:
+    return v.b;
+  case VAL_INT:
+    return v.i != 0;
+  case VAL_DOUBLE:
+    return v.d != 0.0;
+  case VAL_STRING:
+    return v.s && v.s[0] != 0;
+  case VAL_LIST:
+    return v.list->size > 0;
+  case VAL_TUPLE:
+    return v.tuple->size > 0;
+  case VAL_FUNC:
+    return true;
+  case VAL_PTR:
+    return v.ptr != NULL;
+  case VAL_STRUCT_DEF:
+    return true;
+  case VAL_STRUCT:
+    return true;
+  case VAL_ANY:
+    return false;
   }
   return false;
 }
 bool values_equal(Value a, Value b) {
   if (a.type != b.type) return false;
   switch (a.type) {
-    case VAL_INT:
-      return a.i == b.i;
-    case VAL_DOUBLE:
-      return a.d == b.d;
-    case VAL_BOOL:
-      return a.b == b.b;
-    case VAL_STRING:
-      return strcmp(a.s, b.s) == 0;
-    case VAL_NULL:
-      return true;
-    case VAL_PTR:
-      return a.ptr == b.ptr;
-    case VAL_TUPLE:
-      if (a.tuple->size != b.tuple->size) return false;
-      for (size_t i = 0; i < a.tuple->size; i++) {
-        if (!values_equal(a.tuple->items[i], b.tuple->items[i])) return false;
-      }
-      return true;
-    case VAL_ANY:
-      return values_equal(*a.any_val, *b.any_val);
-    default:
-      return false;
+  case VAL_INT:
+    return a.i == b.i;
+  case VAL_DOUBLE:
+    return a.d == b.d;
+  case VAL_BOOL:
+    return a.b == b.b;
+  case VAL_STRING:
+    return strcmp(a.s, b.s) == 0;
+  case VAL_NULL:
+    return true;
+  case VAL_PTR:
+    return a.ptr == b.ptr;
+  case VAL_TUPLE:
+    if (a.tuple->size != b.tuple->size) return false;
+    for (size_t i = 0; i < a.tuple->size; i++) {
+      if (!values_equal(a.tuple->items[i], b.tuple->items[i])) return false;
+    }
+    return true;
+  case VAL_ANY:
+    return values_equal(*a.any_val, *b.any_val);
+  default:
+    return false;
   }
 }
 double value_to_double(Value v) {
@@ -472,32 +472,32 @@ double value_to_double(Value v) {
 
 const char* value_type_name(Value v) {
   switch (v.type) {
-    case VAL_INT:
-      return "int";
-    case VAL_DOUBLE:
-      return "double";
-    case VAL_STRING:
-      return "string";
-    case VAL_FUNC:
-      return "function";
-    case VAL_LIST:
-      return "list";
-    case VAL_NULL:
-      return "null";
-    case VAL_BOOL:
-      return "bool";
-    case VAL_ERROR:
-      return "error";
-    case VAL_TUPLE:
-      return "tuple";
-    case VAL_PTR:
-      return "ptr";
-    case VAL_STRUCT_DEF:
-      return "struct_def";
-    case VAL_STRUCT:
-      return "struct";
-    case VAL_ANY:
-      return "any";
+  case VAL_INT:
+    return "int";
+  case VAL_DOUBLE:
+    return "double";
+  case VAL_STRING:
+    return "string";
+  case VAL_FUNC:
+    return "function";
+  case VAL_LIST:
+    return "list";
+  case VAL_NULL:
+    return "null";
+  case VAL_BOOL:
+    return "bool";
+  case VAL_ERROR:
+    return "error";
+  case VAL_TUPLE:
+    return "tuple";
+  case VAL_PTR:
+    return "ptr";
+  case VAL_STRUCT_DEF:
+    return "struct_def";
+  case VAL_STRUCT:
+    return "struct";
+  case VAL_ANY:
+    return "any";
   }
   return "unknown";
 }
@@ -505,32 +505,32 @@ const char* value_type_name(Value v) {
 const char* value_type_color(Value v) {
   if (!use_colors) return "";
   switch (v.type) {
-    case VAL_INT:
-      return COLOR_CYAN;
-    case VAL_DOUBLE:
-      return COLOR_BLUE;
-    case VAL_STRING:
-      return COLOR_GREEN;
-    case VAL_FUNC:
-      return COLOR_MAGENTA;
-    case VAL_LIST:
-      return COLOR_YELLOW;
-    case VAL_NULL:
-      return COLOR_GRAY;
-    case VAL_BOOL:
-      return COLOR_RED;
-    case VAL_ERROR:
-      return COLOR_RED;
-    case VAL_TUPLE:
-      return COLOR_MAGENTA;
-    case VAL_PTR:
-      return COLOR_WHITE;
-    case VAL_STRUCT_DEF:
-      return COLOR_CYAN;
-    case VAL_STRUCT:
-      return COLOR_CYAN;
-    case VAL_ANY:
-      return COLOR_YELLOW;
+  case VAL_INT:
+    return COLOR_CYAN;
+  case VAL_DOUBLE:
+    return COLOR_BLUE;
+  case VAL_STRING:
+    return COLOR_GREEN;
+  case VAL_FUNC:
+    return COLOR_MAGENTA;
+  case VAL_LIST:
+    return COLOR_YELLOW;
+  case VAL_NULL:
+    return COLOR_GRAY;
+  case VAL_BOOL:
+    return COLOR_RED;
+  case VAL_ERROR:
+    return COLOR_RED;
+  case VAL_TUPLE:
+    return COLOR_MAGENTA;
+  case VAL_PTR:
+    return COLOR_WHITE;
+  case VAL_STRUCT_DEF:
+    return COLOR_CYAN;
+  case VAL_STRUCT:
+    return COLOR_CYAN;
+  case VAL_ANY:
+    return COLOR_YELLOW;
   }
   return COLOR_RESET;
 }
@@ -589,6 +589,7 @@ typedef enum {
   T_COMMA,
   T_LB,
   T_RB,
+  T_DOTDOT,
   T_DOT,
   T_PLUS,
   T_MINUS,
@@ -641,98 +642,100 @@ Token tok;
 
 const char* token_name(TokType t) {
   switch (t) {
-    case T_INT:
-      return "integer";
-    case T_DOUBLE:
-      return "double";
-    case T_STRING:
-      return "string";
-    case T_IDENT:
-      return "identifier";
-    case T_LP:
-      return "'('";
-    case T_RP:
-      return "')'";
-    case T_COMMA:
-      return "','";
-    case T_LB:
-      return "'['";
-    case T_RB:
-      return "']'";
-    case T_DOT:
-      return "'.'";
-    case T_PLUS:
-      return "'+'";
-    case T_MINUS:
-      return "'-'";
-    case T_STAR:
-      return "'*'";
-    case T_SLASH:
-      return "'/'";
-    case T_MOD:
-      return "'%'";
-    case T_POW:
-      return "'**'";
-    case T_ASSIGN:
-      return "'='";
-    case T_COLON:
-      return "':'";
-    case T_SEMI:
-      return "';'";
-    case T_EQ:
-      return "'=='";
-    case T_NE:
-      return "'!='";
-    case T_LT:
-      return "'<'";
-    case T_GT:
-      return "'>'";
-    case T_LE:
-      return "'<='";
-    case T_GE:
-      return "'>='";
-    case T_LAMBDA:
-      return "'lambda'";
-    case T_IF:
-      return "'if'";
-    case T_ELSE:
-      return "'else'";
-    case T_FOR:
-      return "'for'";
-    case T_WHILE:
-      return "'while'";
-    case T_TRUE:
-      return "'True'";
-    case T_FALSE:
-      return "'False'";
-    case T_CONST:
-      return "'const'";
-    case T_IMPORT:
-      return "'import'";
-    case T_LC:
-      return "'{'";
-    case T_RC:
-      return "'}'";
-    case T_RETURN:
-      return "'return'";
-    case T_BREAK:
-      return "'break'";
-    case T_CONTINUE:
-      return "'continue'";
-    case T_LINK:
-      return "'link'";
-    case T_EXTERN:
-      return "'extern'";
-    case T_STRUCT:
-      return "'struct'";
-    case T_AT:
-      return "'@'";
-    case T_EOF:
-      return "end of file";
-    case T_MATCH:
-      return "match";
-    case T_ERROR:
-      return "error";
+  case T_INT:
+    return "integer";
+  case T_DOUBLE:
+    return "double";
+  case T_STRING:
+    return "string";
+  case T_IDENT:
+    return "identifier";
+  case T_LP:
+    return "'('";
+  case T_RP:
+    return "')'";
+  case T_COMMA:
+    return "','";
+  case T_LB:
+    return "'['";
+  case T_RB:
+    return "']'";
+  case T_DOTDOT:
+    return "'..'";
+  case T_DOT:
+    return "'.'";
+  case T_PLUS:
+    return "'+'";
+  case T_MINUS:
+    return "'-'";
+  case T_STAR:
+    return "'*'";
+  case T_SLASH:
+    return "'/'";
+  case T_MOD:
+    return "'%'";
+  case T_POW:
+    return "'**'";
+  case T_ASSIGN:
+    return "'='";
+  case T_COLON:
+    return "':'";
+  case T_SEMI:
+    return "';'";
+  case T_EQ:
+    return "'=='";
+  case T_NE:
+    return "'!='";
+  case T_LT:
+    return "'<'";
+  case T_GT:
+    return "'>'";
+  case T_LE:
+    return "'<='";
+  case T_GE:
+    return "'>='";
+  case T_LAMBDA:
+    return "'lambda'";
+  case T_IF:
+    return "'if'";
+  case T_ELSE:
+    return "'else'";
+  case T_FOR:
+    return "'for'";
+  case T_WHILE:
+    return "'while'";
+  case T_TRUE:
+    return "'True'";
+  case T_FALSE:
+    return "'False'";
+  case T_CONST:
+    return "'const'";
+  case T_IMPORT:
+    return "'import'";
+  case T_LC:
+    return "'{'";
+  case T_RC:
+    return "'}'";
+  case T_RETURN:
+    return "'return'";
+  case T_BREAK:
+    return "'break'";
+  case T_CONTINUE:
+    return "'continue'";
+  case T_LINK:
+    return "'link'";
+  case T_EXTERN:
+    return "'extern'";
+  case T_STRUCT:
+    return "'struct'";
+  case T_AT:
+    return "'@'";
+  case T_EOF:
+    return "end of file";
+  case T_MATCH:
+    return "match";
+  case T_ERROR:
+    return "error";
   }
   return "unknown";
 }
@@ -769,7 +772,7 @@ void next_token(void) {
   if (*src == '.' && *(src + 1) == '.') {
     src += 2;
     current_loc.column += 2;
-    tok.type = T_DOT;
+    tok.type = T_DOTDOT;
     strcpy(tok.text, "..");
     return;
   }
@@ -778,11 +781,13 @@ void next_token(void) {
     bool has_dot = false;
     char* start = (char*)src;
     if (*src == '.') has_dot = true;
-    while (isdigit(*src) || (*src == '.' && !has_dot)) {
+
+    while (isdigit(*src) || (*src == '.' && !has_dot && *(src + 1) != '.')) {  // Added check for '..'
       if (*src == '.') has_dot = true;
       src++;
       current_loc.column++;
     }
+
     if (has_dot) {
       tok.type = T_DOUBLE;
       tok.dval = atof(start);
@@ -804,18 +809,18 @@ void next_token(void) {
         src++;
         current_loc.column++;
         switch (*src) {
-          case 'n':
-            *p++ = '\n';
-            break;
-          case 't':
-            *p++ = '\t';
-            break;
-          case '\\':
-            *p++ = '\\';
-            break;
-          default:
-            *p++ = *src;
-            break;
+        case 'n':
+          *p++ = '\n';
+          break;
+        case 't':
+          *p++ = '\t';
+          break;
+        case '\\':
+          *p++ = '\\';
+          break;
+        default:
+          *p++ = *src;
+          break;
         }
         src++;
         current_loc.column++;
@@ -925,82 +930,82 @@ void next_token(void) {
   current_loc.column++;
 
   switch (ch) {
-    case '+':
-      tok.type = T_PLUS;
-      strcpy(tok.text, "+");
-      return;
-    case '-':
-      tok.type = T_MINUS;
-      strcpy(tok.text, "-");
-      return;
-    case '*':
-      tok.type = T_STAR;
-      strcpy(tok.text, "*");
-      return;
-    case '/':
-      tok.type = T_SLASH;
-      strcpy(tok.text, "/");
-      return;
-    case '%':
-      tok.type = T_MOD;
-      strcpy(tok.text, "%");
-      return;
-    case '(':
-      tok.type = T_LP;
-      strcpy(tok.text, "(");
-      return;
-    case ')':
-      tok.type = T_RP;
-      strcpy(tok.text, ")");
-      return;
-    case '[':
-      tok.type = T_LB;
-      strcpy(tok.text, "[");
-      return;
-    case ']':
-      tok.type = T_RB;
-      strcpy(tok.text, "]");
-      return;
-    case ',':
-      tok.type = T_COMMA;
-      strcpy(tok.text, ",");
-      return;
-    case '=':
-      tok.type = T_ASSIGN;
-      strcpy(tok.text, "=");
-      return;
-    case ':':
-      tok.type = T_COLON;
-      strcpy(tok.text, ":");
-      return;
-    case ';':
-      tok.type = T_SEMI;
-      strcpy(tok.text, ";");
-      return;
-    case '.':
-      tok.type = T_DOT;
-      strcpy(tok.text, ".");
-      return;
-    case '<':
-      tok.type = T_LT;
-      strcpy(tok.text, "<");
-      return;
-    case '>':
-      tok.type = T_GT;
-      strcpy(tok.text, ">");
-      return;
-    case '{':
-      tok.type = T_LC;
-      strcpy(tok.text, "{");
-      return;
-    case '}':
-      tok.type = T_RC;
-      strcpy(tok.text, "}");
-      return;
-    case '@':
-      tok.type = T_AT;
-      strcpy(tok.text, "@");
-      return;
+  case '+':
+    tok.type = T_PLUS;
+    strcpy(tok.text, "+");
+    return;
+  case '-':
+    tok.type = T_MINUS;
+    strcpy(tok.text, "-");
+    return;
+  case '*':
+    tok.type = T_STAR;
+    strcpy(tok.text, "*");
+    return;
+  case '/':
+    tok.type = T_SLASH;
+    strcpy(tok.text, "/");
+    return;
+  case '%':
+    tok.type = T_MOD;
+    strcpy(tok.text, "%");
+    return;
+  case '(':
+    tok.type = T_LP;
+    strcpy(tok.text, "(");
+    return;
+  case ')':
+    tok.type = T_RP;
+    strcpy(tok.text, ")");
+    return;
+  case '[':
+    tok.type = T_LB;
+    strcpy(tok.text, "[");
+    return;
+  case ']':
+    tok.type = T_RB;
+    strcpy(tok.text, "]");
+    return;
+  case ',':
+    tok.type = T_COMMA;
+    strcpy(tok.text, ",");
+    return;
+  case '=':
+    tok.type = T_ASSIGN;
+    strcpy(tok.text, "=");
+    return;
+  case ':':
+    tok.type = T_COLON;
+    strcpy(tok.text, ":");
+    return;
+  case ';':
+    tok.type = T_SEMI;
+    strcpy(tok.text, ";");
+    return;
+  case '.':
+    tok.type = T_DOT;
+    strcpy(tok.text, ".");
+    return;
+  case '<':
+    tok.type = T_LT;
+    strcpy(tok.text, "<");
+    return;
+  case '>':
+    tok.type = T_GT;
+    strcpy(tok.text, ">");
+    return;
+  case '{':
+    tok.type = T_LC;
+    strcpy(tok.text, "{");
+    return;
+  case '}':
+    tok.type = T_RC;
+    strcpy(tok.text, "}");
+    return;
+  case '@':
+    tok.type = T_AT;
+    strcpy(tok.text, "@");
+    return;
   }
 
   snprintf(tok.text, sizeof(tok.text), "%c", ch);
@@ -1711,7 +1716,7 @@ AST* parse_arith(void) {
 
 AST* parse_range(void) {
   AST* start = parse_arith();
-  if (tok.type == T_DOT) {
+  if (tok.type == T_DOTDOT) {
     next_token();
     AST* end = parse_arith();
     AST* range = ast_new(A_RANGE);
@@ -1723,35 +1728,35 @@ AST* parse_range(void) {
 }
 
 AST* parse_comparison(void) {
-  AST* a = parse_arith();
+  AST* a = parse_range();
   while (tok.type == T_EQ || tok.type == T_NE || tok.type == T_LT ||
          tok.type == T_GT || tok.type == T_LE || tok.type == T_GE) {
     char op;
     switch (tok.type) {
-      case T_EQ:
-        op = 'E';
-        break;
-      case T_NE:
-        op = 'N';
-        break;
-      case T_LT:
-        op = '<';
-        break;
-      case T_GT:
-        op = '>';
-        break;
-      case T_LE:
-        op = 'L';
-        break;
-      case T_GE:
-        op = 'G';
-        break;
-      default:
-        op = 'E';
-        break;
+    case T_EQ:
+      op = 'E';
+      break;
+    case T_NE:
+      op = 'N';
+      break;
+    case T_LT:
+      op = '<';
+      break;
+    case T_GT:
+      op = '>';
+      break;
+    case T_LE:
+      op = 'L';
+      break;
+    case T_GE:
+      op = 'G';
+      break;
+    default:
+      op = 'E';
+      break;
     }
     next_token();
-    AST* b = parse_arith();
+    AST* b = parse_range();
     AST* n = ast_new(A_BINOP);
     n->bin.op = op;
     n->bin.l = a;
@@ -1836,13 +1841,13 @@ AST* parse_expr(void) {
     }
     next_token();
 
-    AST* iter = parse_expr();
+    AST* iter = parse_comparison();
 
     AST* body;
     if (tok.type == T_LC) {
       body = parse_block();
     } else {
-      error_at(tok.loc, "expected '{' or ':' for for loop body");
+      error_at(tok.loc, "expected '{' for for loop body, got %s", token_name(tok.type));
       return ast_new(A_INT);
     }
 
@@ -3260,17 +3265,50 @@ Value eval(AST* a, Env* env) {
 
   case A_FOR: {
     Value result = v_null();
+    Value iter_val = eval(a->forloop.iter, env);
 
-    if (a->forloop.iter->type == A_RANGE) {
-      Value start = eval(a->forloop.iter->range.start, env);
-      Value end = eval(a->forloop.iter->range.end, env);
+    if (iter_val.type == VAL_ERROR) {
+      return iter_val;
+    }
 
-      if (start.type != VAL_INT || end.type != VAL_INT) {
-        return v_error("range requires integer bounds");
+    if (iter_val.type == VAL_LIST) {
+      for (size_t i = 0; i < iter_val.list->size; i++) {
+        env_set(env, a->forloop.var, iter_val.list->items[i], false);
+        result = eval(a->forloop.body, env);
+
+        if (result.cf == CF_BREAK) {
+          result.cf = CF_NONE;
+          break;
+        }
+        if (result.cf == CF_CONTINUE) {
+          result.cf = CF_NONE;
+          continue;
+        }
+        if (result.cf == CF_RETURN) {
+          return result;
+        }
       }
+    } else if (iter_val.type == VAL_TUPLE) {
+      for (size_t i = 0; i < iter_val.tuple->size; i++) {
+        env_set(env, a->forloop.var, iter_val.tuple->items[i], false);
+        result = eval(a->forloop.body, env);
 
-      for (long long i = start.i; i < end.i; i++) {
-        env_set(env, a->forloop.var, v_int(i), false);
+        if (result.cf == CF_BREAK) {
+          result.cf = CF_NONE;
+          break;
+        }
+        if (result.cf == CF_CONTINUE) {
+          result.cf = CF_NONE;
+          continue;
+        }
+        if (result.cf == CF_RETURN) {
+          return result;
+        }
+      }
+    } else if (iter_val.type == VAL_STRING) {
+      for (size_t i = 0; i < strlen(iter_val.s); i++) {
+        char buf[2] = {iter_val.s[i], '\0'};
+        env_set(env, a->forloop.var, v_str(buf), false);
         result = eval(a->forloop.body, env);
 
         if (result.cf == CF_BREAK) {
@@ -3286,70 +3324,11 @@ Value eval(AST* a, Env* env) {
         }
       }
     } else {
-      Value iter_val = eval(a->forloop.iter, env);
-
-      if (iter_val.type == VAL_ERROR) {
-        return iter_val;
-      }
-
-      if (iter_val.type == VAL_LIST) {
-        for (size_t i = 0; i < iter_val.list->size; i++) {
-          env_set(env, a->forloop.var, iter_val.list->items[i], false);
-          result = eval(a->forloop.body, env);
-
-          if (result.cf == CF_BREAK) {
-            result.cf = CF_NONE;
-            break;
-          }
-          if (result.cf == CF_CONTINUE) {
-            result.cf = CF_NONE;
-            continue;
-          }
-          if (result.cf == CF_RETURN) {
-            return result;
-          }
-        }
-      } else if (iter_val.type == VAL_TUPLE) {
-        for (size_t i = 0; i < iter_val.tuple->size; i++) {
-          env_set(env, a->forloop.var, iter_val.tuple->items[i], false);
-          result = eval(a->forloop.body, env);
-
-          if (result.cf == CF_BREAK) {
-            result.cf = CF_NONE;
-            break;
-          }
-          if (result.cf == CF_CONTINUE) {
-            result.cf = CF_NONE;
-            continue;
-          }
-          if (result.cf == CF_RETURN) {
-            return result;
-          }
-        }
-      } else if (iter_val.type == VAL_STRING) {
-        for (size_t i = 0; i < strlen(iter_val.s); i++) {
-          char buf[2] = {iter_val.s[i], '\0'};
-          env_set(env, a->forloop.var, v_str(buf), false);
-          result = eval(a->forloop.body, env);
-
-          if (result.cf == CF_BREAK) {
-            result.cf = CF_NONE;
-            break;
-          }
-          if (result.cf == CF_CONTINUE) {
-            result.cf = CF_NONE;
-            continue;
-          }
-          if (result.cf == CF_RETURN) {
-            return result;
-          }
-        }
-      } else {
-        return v_error("for loop requires iterable (list, tuple, string, or range)");
-      }
+      return v_error("for loop requires iterable (list, tuple, string, or range)");
     }
     return result;
   }
+
   case A_WHILE: {
     Value result = v_null();
     while (value_is_truthy(eval(a->whileloop.cond, env))) {

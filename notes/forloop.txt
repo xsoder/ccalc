@@ -1,0 +1,30 @@
+The current date is: Tue 01/20/2026
+
+# For loop implementation
+
+The for loops look pretty much pythonish for loop reason being I did not want to over complicate it.
+
+To get item based for loop you use this.
+
+```
+f(x) = {
+     for i: (x) {
+         # Do what ever with i
+     }
+}
+```
+
+## Variadic implementation
+
+Variadic could be implementated with ... I opted for simple approach of $.
+
+```
+strcut Array {
+    arr,
+    Append(self, $args) = {
+         for i: ($args) {
+             self.arr.append(i)
+         }
+    }
+}
+```
