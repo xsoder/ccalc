@@ -1,0 +1,22 @@
+x = [ "buffer", "test", "nun", "mom" ]
+
+int_to_bool(x) = {
+    if x != 0: return "True"
+    return "False"
+}
+
+is_palindrome(buffer) = {
+    rev = ""
+    i = 0
+    for j: (buffer) {
+        rev = rev + buffer[len(buffer) - 1 - i]
+        i = i + 1
+    }
+    if rev == buffer: { return 1  }
+    else: { return 0 }
+}
+
+for q: (x) {
+    e = int_to_bool(is_palindrome(q))
+    print("% => {e}", q)
+}
