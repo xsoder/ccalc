@@ -1,16 +1,17 @@
-Variadic
+Variadic - not complete
 
 (19/1/2026): Tonights work is for loop
-syntax
+syntax Fully complete
 
-function(..args) = {
-    for i: (args) {
-    }
-    for i: (0..10) {
-    }
-    for i: (array) {
-    }
-}
+Binary operators like:
++=
+*=
+-=
+/=
+%=
+++
+--
+* -> Pointers;
 
 This fix should be later:
 dll loaded: if function symbol is not loaded ignore in the link and abort when called.

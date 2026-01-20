@@ -9,7 +9,6 @@ extern fopen   = fopen(string, string): ptr
 extern fputs   = fputs(string, ptr): int
 extern fread   = fread(string, int, int, ptr): int
 extern ftell   = ftell(ptr): int
-extern urmom   = urmom(ptr): int
 
 struct File {
     path,

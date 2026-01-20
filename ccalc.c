@@ -3507,7 +3507,7 @@ char* resolve_import_path(const char* import_name, const char* current_file);
 void run_repl(void) {
   char line[2048];
   while (1) {
-    printf("λ ");
+    printf(">>> ");
     fflush(stdout);
     if (!fgets(line, sizeof(line), stdin)) break;
     size_t len = strlen(line);
