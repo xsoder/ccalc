@@ -7,6 +7,7 @@ unix_path = "/tmp/ccalc.sock"
 create_connection = lambda kind, port_or_path: {
   match kind : {
     "tcp": tcp_server(port_or_path)
+    "upd": upd_server(port_or_path)
     "unix": unix_server(port_or_path)
     None : continue
   }

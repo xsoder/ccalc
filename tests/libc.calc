@@ -1,4 +1,10 @@
-link "/usr/lib/libc.so.6"
+@os "win32" {
+    link "C:/Windows/System32/msvcrt.dll"
+}
+
+@os "linux" {
+    link "/usr/lib/libc.so.6"
+}
 
 extern fopen = fopen(string, string): ptr
 extern fputs = fputs(string, ptr): int
@@ -23,9 +29,15 @@ generate_ppm(name) = {
     while row < HEIGHT: {
         col = 0
         while col < WIDTH: {
-            fputc(255, fptr)
-            fputc(0, fptr)
-            fputc(0, fptr)
+            if col % row == 0: {
+                fputc(255, fptr)
+                fputc(0, fptr)
+                fputc(0, fptr)
+            } else {
+                fputc(0, fptr)
+                fputc(0, fptr)
+                fputc(0, fptr)
+            }
             col = col + 1
         }
         row = row + 1

@@ -1,0 +1,4 @@
+f($args) = {
+    for i: ($args) {
+    }
+}
