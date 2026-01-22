@@ -1,6 +1,7 @@
 //   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling,
 //   Tuples, and Any Type Build:
 //   cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm -DBUILD_DIR=$(pwd)
+#include <stddef.h>
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
 #ifndef _WIN32
@@ -188,6 +189,7 @@ typedef enum {
   FFI_FLOAT,
   FFI_CHAR,
   FFI_BOOL,
+  FFI_VARIADIC,
   FFI_ANY
 } FFIType;
 
@@ -202,6 +204,7 @@ typedef struct {
   void *func_ptr;
   FFIType *param_types;
   size_t param_count;
+  bool is_variadic;
   FFIType return_type;
 } ExternFunc;
 
@@ -2626,6 +2629,8 @@ FFIType parse_ffi_type(const char *type_name) {
   if (!strcmp(type_name, "float")) return FFI_FLOAT;
   if (!strcmp(type_name, "char")) return FFI_CHAR;
   if (!strcmp(type_name, "bool")) return FFI_BOOL;
+  if (!strcmp(type_name, "$args") || !strcmp(type_name, "variadic")) return
+FFI_VARIADIC;
   if (!strcmp(type_name, "any")) return FFI_ANY;
   return FFI_VOID;
 }
@@ -2647,6 +2652,10 @@ void register_extern(const char *ccalc_name, const char *c_name,
     extern_funcs = new_funcs;
     extern_funcs_capacity = new_cap;
   }
+  bool is_variadic = false;
+  if (param_count > 0 && param_types[param_count - 1] == FFI_VARIADIC) {
+    is_variadic = true;
+  }
 
   extern_funcs[extern_funcs_count].name = strdup(ccalc_name);
   extern_funcs[extern_funcs_count].c_name = strdup(c_name);
@@ -2657,11 +2666,12 @@ void register_extern(const char *ccalc_name, const char *c_name,
          sizeof(FFIType) * param_count);
   extern_funcs[extern_funcs_count].param_count = param_count;
   extern_funcs[extern_funcs_count].return_type = return_type;
+  extern_funcs[extern_funcs_count].is_variadic = is_variadic;
   extern_funcs_count++;
 
   Function *ffi_func = xmalloc(sizeof(Function));
   ffi_func->is_builtin = false;
-  ffi_func->is_variadic = false;
+  ffi_func->is_variadic = true;
   ffi_func->arity = param_count;
   ffi_func->params = NULL;
   ffi_func->body = NULL;
@@ -2679,34 +2689,56 @@ ExternFunc *find_extern(const char *name) {
   return NULL;
 }
 
-Value call_extern(ExternFunc *ext, Value *args) {
+Value call_extern(ExternFunc *ext, Value *args, size_t argc) {
   if (!ext || !ext->func_ptr) {
     return v_error("extern function not found or not loaded");
   }
 
   void *func = ext->func_ptr;
-  long long params[16] = {0};
 
-  for (size_t i = 0; i < ext->param_count && i < 16; i++) {
+  long long *params = xmalloc(sizeof(long long) * (argc > 32 ? argc : 32));
+
+  size_t fixed_count = ext->is_variadic ? ext->param_count - 1 :
+  ext->param_count;
+
+  for (size_t i = 0; i < argc; i++) {
     Value arg = args[i];
-
     if (arg.type == VAL_ANY && arg.any_val) {
       arg = *arg.any_val;
     }
 
-    switch (ext->param_types[i]) {
+    FFIType param_type;
+    if (i < fixed_count) {
+      param_type = ext->param_types[i];
+    } else {
+      if (arg.type == VAL_INT || arg.type == VAL_BOOL)
+        param_type = FFI_INT;
+      else if (arg.type == VAL_DOUBLE)
+        param_type = FFI_DOUBLE;
+      else if (arg.type == VAL_STRING)
+        param_type = FFI_STRING;
+      else if (arg.type == VAL_PTR)
+        param_type = FFI_PTR;
+      else
+        param_type = FFI_ANY;
+    }
+
+    switch (param_type) {
+      case FFI_VARIADIC:
+        break;
+
       case FFI_ANY:
         if (arg.type == VAL_INT)
           params[i] = arg.i;
-        else if (arg.type == VAL_DOUBLE) {
-          memcpy(&params[i], &arg.d, sizeof(double));
-        } else if (arg.type == VAL_PTR)
-          params[i] = (long long)arg.ptr;
-        else if (arg.type == VAL_STRING)
-          params[i] = (long long)arg.s;
-        else
-          params[i] = 0;
-        break;
+      else if (arg.type == VAL_DOUBLE)
+        memcpy(&params[i], &arg.d, sizeof(double));
+      else if (arg.type == VAL_PTR)
+        params[i] = (long long)arg.ptr;
+      else if (arg.type == VAL_STRING)
+        params[i] = (long long)arg.s;
+      else
+        params[i] = 0;
+      break;
 
       case FFI_INT:
       case FFI_LONG:
@@ -2714,13 +2746,13 @@ Value call_extern(ExternFunc *ext, Value *args) {
       case FFI_BOOL:
         if (arg.type == VAL_INT)
           params[i] = arg.i;
-        else if (arg.type == VAL_DOUBLE)
-          params[i] = (long long)arg.d;
-        else if (arg.type == VAL_BOOL)
-          params[i] = arg.b ? 1 : 0;
-        else
-          return v_error("invalid argument type for FFI int parameter");
-        break;
+      else if (arg.type == VAL_DOUBLE)
+        params[i] = (long long)arg.d;
+      else if (arg.type == VAL_BOOL)
+        params[i] = arg.b ? 1 : 0;
+      else
+        return v_error("invalid argument type for FFI int parameter");
+      break;
 
       case FFI_DOUBLE:
       case FFI_FLOAT: {
@@ -2732,7 +2764,7 @@ Value call_extern(ExternFunc *ext, Value *args) {
         else
           return v_error("invalid argument type for FFI double parameter");
 
-        if (ext->param_types[i] == FFI_FLOAT) {
+        if (param_type == FFI_FLOAT) {
           float fval = (float)dval;
           memcpy(&params[i], &fval, sizeof(float));
         } else {
@@ -2744,20 +2776,20 @@ Value call_extern(ExternFunc *ext, Value *args) {
       case FFI_STRING:
         if (arg.type == VAL_STRING)
           params[i] = (long long)arg.s;
-        else
-          return v_error("invalid argument type for FFI string parameter");
-        break;
+      else
+        return v_error("invalid argument type for FFI string parameter");
+      break;
 
       case FFI_PTR:
         if (arg.type == VAL_PTR)
           params[i] = (long long)arg.ptr;
-        else if (arg.type == VAL_STRING)
-          params[i] = (long long)arg.s;
-        else if (arg.type == VAL_INT)
-          params[i] = arg.i;
-        else
-          params[i] = 0;
-        break;
+      else if (arg.type == VAL_STRING)
+        params[i] = (long long)arg.s;
+      else if (arg.type == VAL_INT)
+        params[i] = arg.i;
+      else
+        params[i] = 0;
+      break;
 
       case FFI_VOID:
         break;
@@ -2765,53 +2797,50 @@ Value call_extern(ExternFunc *ext, Value *args) {
   }
 
   long long result;
-  switch (ext->param_count) {
-    case 0:
-      result = ((long long (*)(void))func)();
+  switch (argc) {
+    case 0: result = ((long long (*)(void))func)(); break;
+    case 1: result = ((long long (*)(long long))func)(params[0]); break;
+    case 2: result = ((long long (*)(long long, long long))func)(params[0],
+      params[1]); break;
+    case 3: result = ((long long (*)(long long, long long, long
+      long))func)(params[0], params[1], params[2]); break;
+    case 4: result = ((long long (*)(long long, long long, long long, long
+      long))func)(params[0], params[1], params[2], params[3]); break;
+    case 5: result = ((long long (*)(long long, long long, long long, long long,
+      long long))func)(params[0], params[1], params[2], params[3], params[4]);
       break;
-    case 1:
-      result = ((long long (*)(long long))func)(params[0]);
+    case 6: result = ((long long (*)(long long, long long, long long, long long,
+      long long, long long))func)(params[0], params[1], params[2], params[3],
+                                  params[4], params[5]); break;
+    case 7: result = ((long long (*)(long long, long long, long long, long long,
+      long long, long long, long long))func)(params[0], params[1], params[2],
+                                             params[3], params[4], params[5],
+                                             params[6]); break;
+    case 8: result = ((long long (*)(long long, long long, long long, long long,
+      long long, long long, long long, long long))func)(params[0], params[1],
+                                                        params[2], params[3],
+                                                        params[4], params[5],
+                                                        params[6], params[7]);
       break;
-    case 2:
-      result =
-          ((long long (*)(long long, long long))func)(params[0], params[1]);
+    case 9: result = ((long long (*)(long long, long long, long long, long long,
+      long long, long long, long long, long long, long long))func)(params[0],
+                                                                   params[1],
+                                                                   params[2],
+                                                                   params[3],
+                                                                   params[4],
+                                                                   params[5],
+                                                                   params[6],
+                                                                   params[7],
+                                                                   params[8]);
       break;
-    case 3:
-      result = ((long long (*)(long long, long long, long long))func)(
-          params[0], params[1], params[2]);
-      break;
-    case 4:
-      result =
-          ((long long (*)(long long, long long, long long, long long))func)(
-              params[0], params[1], params[2], params[3]);
-      break;
-    case 5:
-      result = ((long long (*)(long long, long long, long long, long long,
-                               long long))func)(params[0], params[1], params[2],
-                                                params[3], params[4]);
-      break;
-    case 6:
-      result = ((long long (*)(long long, long long, long long, long long,
-                               long long, long long))func)(
-          params[0], params[1], params[2], params[3], params[4], params[5]);
-      break;
-    case 7:
-      result = ((long long (*)(long long, long long, long long, long long,
-                               long long, long long, long long))func)(
-          params[0], params[1], params[2], params[3], params[4], params[5],
-          params[6]);
-      break;
-    case 8:
-      result =
-          ((long long (*)(long long, long long, long long, long long, long long,
-                          long long, long long, long long))func)(
-              params[0], params[1], params[2], params[3], params[4], params[5],
-              params[6], params[7]);
-      break;
+    case 10: result = ((long long (*)(long long, long long, long long, long
+      long, long long, long long, long long, long long, long long, long
+      long))func)(params[0], params[1], params[2], params[3], params[4],
+                  params[5], params[6], params[7], params[8], params[9]); break;
+                  // Add more cases as needed up to a reasonable limit
     default:
-      return v_error("FFI calls support max 8 parameters");
+      return v_error("Result unreasonable value it reaches");
   }
-
   switch (ext->return_type) {
     case FFI_INT:
     case FFI_LONG:
@@ -2837,6 +2866,7 @@ Value call_extern(ExternFunc *ext, Value *args) {
     case FFI_PTR:
       return v_ptr((void *)result);
     case FFI_VOID:
+    case FFI_VARIADIC:
       return v_null();
   }
 
@@ -3229,14 +3259,17 @@ Value eval(AST *a, Env *env) {
       if (a->call.fn->type == A_VAR) {
         ExternFunc *ext = find_extern(a->call.fn->name);
         if (ext) {
-          if (a->call.argc != ext->param_count) {
+          if (!ext->is_variadic && a->call.argc != ext->param_count) {
             return v_error("extern function argument count mismatch");
+          }
+          if (ext->is_variadic && a->call.argc < ext->param_count - 1) {
+            return v_error("extern function requires at least %zu arguments");
           }
           Value *vals = xmalloc(sizeof(Value) * a->call.argc);
           for (size_t i = 0; i < a->call.argc; i++)
             vals[i] = eval(a->call.args[i], env);
-          return call_extern(ext, vals);
-        }
+          return call_extern(ext, vals, a->call.argc);  // Pass argc
+  }
       }
 
       if (f.type != VAL_FUNC) return v_null();

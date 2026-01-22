@@ -1,0 +1,9 @@
+@os "win32" {
+    link "C:/Windows/System32/msvcrt.dll"
+}
+@os "linux" {
+    link "/usr/lib/libc.so.6"
+}
+
+extern printf = printf(string, $args): int
+printf("%s\n", "Hello world")
