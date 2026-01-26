@@ -1270,6 +1270,7 @@ struct AST {
   };
 };
 
+AST* parse_primary(void);
 AST* parse_expr(void);
 AST* parse_stmt(void);
 
@@ -1288,6 +1289,98 @@ bool expect(TokType expected) {
     return false;
   }
   return true;
+}
+
+AST* parse_postfix(void) {
+  AST* obj = parse_primary();
+  while (1) {
+    if (tok.type == T_LP) {
+      next_token();
+      AST* call = ast_new(A_CALL);
+      call->call.fn = obj;
+      call->call.args = xmalloc(sizeof(AST*) * 64);
+      call->call.argc = 0;
+      if (tok.type != T_RP) {
+        call->call.args[call->call.argc++] = parse_expr();
+        while (tok.type == T_COMMA) {
+          next_token();
+          call->call.args[call->call.argc++] = parse_expr();
+        }
+      }
+      expect(T_RP);
+      next_token();
+      obj = call;
+    } else if (tok.type == T_LB) {
+      next_token();
+      AST* idx = parse_expr();
+      expect(T_RB);
+      next_token();
+      AST* c = ast_new(A_INDEX);
+      c->index.obj = obj;
+      c->index.idx = idx;
+      obj = c;
+    } else if (tok.type == T_DOT) {
+      next_token();
+      if (!expect(T_IDENT)) {
+        next_token();
+        break;
+      }
+      char* method = xstrdup(tok.text);
+      next_token();
+      if (tok.type == T_LP) {
+        next_token();
+        AST** args = xmalloc(sizeof(AST*) * 16);
+        size_t n = 0;
+        if (tok.type != T_RP) {
+          while (1) {
+            args[n++] = parse_expr();
+            if (tok.type == T_COMMA)
+              next_token();
+            else
+              break;
+          }
+        }
+        if (!expect(T_RP)) {
+        } else {
+          next_token();
+        }
+        AST* c = ast_new(A_METHOD);
+        c->method.obj = obj;
+        c->method.method = method;
+        c->method.args = args;
+        c->method.argc = n;
+        obj = c;
+      } else {
+        AST* c = ast_new(A_MEMBER);
+        c->member.obj = obj;
+        c->member.member = method;
+        obj = c;
+      }
+    } else if (tok.type == T_INCREMENT) {
+      next_token();
+      if (obj->type == A_VAR) {
+        AST* incr = ast_new(A_INCREMENT);
+        incr->increment.name = obj->name;
+        incr->increment.is_post = true;
+        obj = incr;
+      } else {
+        error_at(obj->loc, "++ requires variable name");
+      }
+    } else if (tok.type == T_DECR) {
+      next_token();
+      if (obj->type == A_VAR) {
+        AST* decr = ast_new(A_DECREMENT);
+        decr->decrement.name = obj->name;
+        decr->decrement.is_post = true;
+        obj = decr;
+      } else {
+        error_at(obj->loc, "-- requires variable name");
+      }
+    } else {
+      break;
+    }
+  }
+  return obj;
 }
 
 AST* parse_match(void) {
@@ -1784,78 +1877,6 @@ AST* parse_primary(void) {
   error_at(tok.loc, "expected expression but got %s", token_name(tok.type));
   next_token();
   return ast_new(A_INT);
-}
-
-AST* parse_postfix(void) {
-  AST* obj = parse_primary();
-  while (1) {
-    if (tok.type == T_LP) {
-      next_token();
-      AST* call = ast_new(A_CALL);
-      call->call.fn = obj;
-      call->call.args = xmalloc(sizeof(AST*) * 64);
-      call->call.argc = 0;
-      if (tok.type != T_RP) {
-        call->call.args[call->call.argc++] = parse_expr();
-        while (tok.type == T_COMMA) {
-          next_token();
-          call->call.args[call->call.argc++] = parse_expr();
-        }
-      }
-      expect(T_RP);
-      next_token();
-      obj = call;
-    } else if (tok.type == T_LB) {
-      next_token();
-      AST* idx = parse_expr();
-      expect(T_RB);
-      next_token();
-      AST* c = ast_new(A_INDEX);
-      c->index.obj = obj;
-      c->index.idx = idx;
-      obj = c;
-    } else if (tok.type == T_DOT) {
-      next_token();
-      if (!expect(T_IDENT)) {
-        next_token();
-        break;
-      }
-      char* method = xstrdup(tok.text);
-      next_token();
-      if (tok.type == T_LP) {
-        next_token();
-        AST** args = xmalloc(sizeof(AST*) * 16);
-        size_t n = 0;
-        if (tok.type != T_RP) {
-          while (1) {
-            args[n++] = parse_expr();
-            if (tok.type == T_COMMA)
-              next_token();
-            else
-              break;
-          }
-        }
-        if (!expect(T_RP)) {
-        } else {
-          next_token();
-        }
-        AST* c = ast_new(A_METHOD);
-        c->method.obj = obj;
-        c->method.method = method;
-        c->method.args = args;
-        c->method.argc = n;
-        obj = c;
-      } else {
-        AST* c = ast_new(A_MEMBER);
-        c->member.obj = obj;
-        c->member.member = method;
-        obj = c;
-      }
-    } else {
-      break;
-    }
-  }
-  return obj;
 }
 
 AST* parse_power(void) {
@@ -3617,8 +3638,14 @@ Value eval(AST* a, Env* env) {
       }
 
       Value result = v_list();
-      for (long long i = start.i; i < end.i; i++) {
-        list_append(result.list, v_int(i));
+      if (start.i <= end.i) {
+        for (long long i = start.i; i < end.i; i++) {
+          list_append(result.list, v_int(i));
+        }
+      } else {
+        for (long long i = start.i; i > end.i; i--) {
+          list_append(result.list, v_int(i));
+        }
       }
       return result;
     }
