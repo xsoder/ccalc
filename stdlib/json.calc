@@ -95,7 +95,15 @@ struct JObject {
         file.write(self.content)
         file.close()
     }
-    StructAsJson(self, s) = {
-        print(type(s))
+}
+
+StructAsJson(obj, p) = {
+    for i, j: (p) {
+        if type(j) == "int": {obj.JsonAddInteger(i, j)}
+        if type(j) == "string": {obj.JsonAddString(i, j)}
+        if type(j) == "bool": {obj.JsonAddBoolean(i, j)}
+        if type(j) == None: {obj.JsonAddNull(i, j)}
+        if type(j) == "list": {obj.JsonAddArray(i, j)}
     }
 }
+

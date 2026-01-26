@@ -42,3 +42,26 @@ strcut Array {
 ```
 
 -- Variadic syntax should be easy to iterate
+
+## Struct Parsing with for loops
+
+When having a struct I want to be able to iterate between the members and its values.
+
+```
+strcut Person {
+    married,
+    name,
+    age,
+}
+
+p = Person {
+  married: False,
+  name: "penger",
+  age: 18,
+}
+
+for i, j: (array) {
+    print("Key: % -> %", i, j)
+}
+
+```

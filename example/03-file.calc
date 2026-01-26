@@ -1,4 +1,4 @@
-import "file.calc"
+import "file"
 
 file = File {
     path: "main.txt",

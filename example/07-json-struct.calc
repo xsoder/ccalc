@@ -1,0 +1,21 @@
+import "json"
+
+obj = JObject{}
+
+struct Person {
+    married,
+    name,
+    age,
+}
+
+p = Person {
+  married: False,
+  name: 63,
+  age: [10, 20, 30],
+}
+
+obj.JsonObjBegin()
+StructAsJson(obj, p)
+obj.JsonObjEnd()
+
+print(obj.content)
