@@ -15,12 +15,12 @@ print_fib(n) = print_fib_helper(n, 0)
 
 print_fib(10)
 
-##
-# print("\n------Test Begin------")
-# test(5, fib_rec(5))
-# test(55, fib_rec(10))
-# print("--------Test End------")
-#
-#
-# print("\n------Test Print Fib------")
-# print_fib(5)
+
+print("\n------Test Begin------")
+test(5, fib_rec(5))
+test(55, fib_rec(10))
+print("--------Test End------")
+
+
+print("\n------Test Print Fib------")
+print_fib(5)
