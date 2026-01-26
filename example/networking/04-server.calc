@@ -2,7 +2,7 @@ import "net-module.calc"
 
 server_type = "tcp"
 port = 8080
-unix_path = "/tmp/ccalc.sock"
+unix_path = "/tmp/aoxim.sock"
 
 create_connection = lambda kind, port_or_path: {
   match kind : {

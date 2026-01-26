@@ -87,7 +87,7 @@ int nw_send(int fd, const char* msg) {
 }
 
 /* Receive up to 4096 bytes and return a malloc'd C string.
-   Returns NULL on EOF/error. Caller (ccalc) will get it as string. */
+   Returns NULL on EOF/error. Caller (aoxim) will get it as string. */
 char* nw_recv_str(int fd) {
   char buf[4096];
   ssize_t r = recv(fd, buf, sizeof(buf) - 1, 0);

@@ -9,14 +9,14 @@ LLVM_CHK = "chk/llvm_chk"
 COMPILER_PATH = f"{LLVM_PATH}/bin/clang"
 
 WIN_CONTENT = f"""@echo off
-"{COMPILER_PATH}.exe" -Wno-deprecated-declarations -Wall -Wextra -O2 ccalc.c -o ccalc.exe -DBUILD_DIR=%pwd%
+"{COMPILER_PATH}.exe" -Wno-deprecated-declarations -Wall -Wextra -O2 aoxim.c -o aoxim.exe -DBUILD_DIR=%pwd%
 """
 
 POSIX_CONTENT = f"""#!/bin/sh
 set -xe
 LLVM_INCLUDE=$("{LLVM_PATH}/bin/llvm-config --includedir")
 LLVM_LIBS=$("{LLVM_PATH}/bin/llvm-config --libs")
-{COMPILER_PATH} -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -lm -ldl -DBUILD_DIR=$(pwd) $LLVM_LIBS
+{COMPILER_PATH} -std=c99 -Wall -Wextra -O2 aoxim.c -o aoxim -lm -ldl -DBUILD_DIR=$(pwd) $LLVM_LIBS
 """
 
 def detect():

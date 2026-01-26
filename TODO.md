@@ -1,14 +1,3 @@
-Variadic -  The current date is: Tue 01/20/2026 
-
-func($args) {
-    for i: ($args) {
-       print(i) 
-     }
-}
-
-(19/1/2026): Tonights work is for loop
-syntax Fully complete
-
 Binary operators like:
 +=
 *=

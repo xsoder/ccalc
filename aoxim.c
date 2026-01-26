@@ -1,6 +1,6 @@
-//   ccalc - Lambda Calculus Language with FFI, Closures, Error Handling,
+//   aoxim - Lambda Calculus Language with FFI, Closures, Error Handling,
 //   Tuples, and Any Type Build:
-//   cc -std=c99 -Wall -Wextra -O2 ccalc.c -o ccalc -ldl -lm -DBUILD_DIR=$(pwd)
+//   cc -std=c99 -Wall -Wextra -O2 aoxim.c -o aoxim -ldl -lm -DBUILD_DIR=$(pwd)
 #include <stddef.h>
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
@@ -2694,7 +2694,7 @@ FFIType parse_ffi_type(const char* type_name) {
   return FFI_VOID;
 }
 
-void register_extern(const char* ccalc_name, const char* c_name,
+void register_extern(const char* aoxim_name, const char* c_name,
                      FFIType* param_types, size_t param_count,
                      FFIType return_type) {
   void* func_ptr = find_symbol(c_name);
@@ -2716,7 +2716,7 @@ void register_extern(const char* ccalc_name, const char* c_name,
     is_variadic = true;
   }
 
-  extern_funcs[extern_funcs_count].name = strdup(ccalc_name);
+  extern_funcs[extern_funcs_count].name = strdup(aoxim_name);
   extern_funcs[extern_funcs_count].c_name = strdup(c_name);
   extern_funcs[extern_funcs_count].func_ptr = func_ptr;
   extern_funcs[extern_funcs_count].param_types =
@@ -2736,7 +2736,7 @@ void register_extern(const char* ccalc_name, const char* c_name,
   ffi_func->body = NULL;
   ffi_func->closure_env = NULL;
 
-  env_set(global_env, ccalc_name, v_func(ffi_func), false);
+  env_set(global_env, aoxim_name, v_func(ffi_func), false);
 }
 
 ExternFunc* find_extern(const char* name) {
@@ -3754,8 +3754,8 @@ void run_repl(void) {
         next_token();
         continue;
       }
-      char ccalc_name[256];
-      strcpy(ccalc_name, tok.text);
+      char aoxim_name[256];
+      strcpy(aoxim_name, tok.text);
       next_token();
 
       if (tok.type != T_ASSIGN) {
@@ -3813,7 +3813,7 @@ void run_repl(void) {
       FFIType return_type = parse_ffi_type(tok.text);
       next_token();
 
-      register_extern(ccalc_name, c_name, param_types, param_count,
+      register_extern(aoxim_name, c_name, param_types, param_count,
                       return_type);
       continue;
     }
@@ -4255,8 +4255,8 @@ void run_file(const char* filename) {
         error_at(tok.loc, "extern requires function name");
         continue;
       }
-      char ccalc_name[256];
-      strcpy(ccalc_name, tok.text);
+      char aoxim_name[256];
+      strcpy(aoxim_name, tok.text);
       next_token();
 
       if (tok.type != T_ASSIGN) {
@@ -4313,7 +4313,7 @@ void run_file(const char* filename) {
       FFIType return_type = parse_ffi_type(tok.text);
       next_token();
 
-      register_extern(ccalc_name, c_name, param_types, param_count,
+      register_extern(aoxim_name, c_name, param_types, param_count,
                       return_type);
       continue;
     }

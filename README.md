@@ -1,10 +1,21 @@
-# CCLAC
+# Aoxim
 
-Math based programming language.
+It is a scipting language that has fully compatibility with C libraries as it has its own FFI and is meant for general use case and system level Programming.
 
-The syntax is pretty much like math expression.
+## TODO:
+- [ ] Make it statically typed executable language as well.
+- [ ] Use Libffi as my FFI does not account for varaidics very well.
+- [ ] Add binary operations.
 
+## Use case
+All examples are in example but to get started use the following commands for your operating system.
+
+#### Linux/Macos
+``` sh
+./build.sh
 ```
-f(x, y) = x + y
-```
 
+#### Windows
+``` sh
+.\build.bat # Note that u need the Clang compiler.
+```

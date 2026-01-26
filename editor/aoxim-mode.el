@@ -1,20 +1,20 @@
-;;; ccalc-mode.el --- Major mode for ccalc math language -*- lexical-binding: t; -*-
+;;; aoxim-mode.el --- Major mode for aoxim math language -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025
 ;; Author: xsoder
-;; Keywords: languages, math, ccalc
+;; Keywords: languages, math, aoxim
 ;; Version: 0.2
 ;; Package-Requires: ((emacs "25.3"))
 
 ;;; Commentary:
 
-;; Major mode for editing and running ccalc math language files.
+;; Major mode for editing and running aoxim math language files.
 ;; Provides syntax highlighting, indentation, and an inferior REPL mode
 ;; similar to Haskell mode.
 ;;
 ;; Usage:
-;;   M-x ccalc-mode         - Enable major mode for .calc files
-;;   M-x run-ccalc          - Start interactive REPL
+;;   M-x aoxim-mode         - Enable major mode for .calc files
+;;   M-x run-aoxim          - Start interactive REPL
 ;;   C-c C-l                - Load current file into REPL
 ;;   C-c C-r                - Send region to REPL
 ;;   C-c C-c                - Send current definition to REPL
@@ -27,31 +27,31 @@
 ;;; Customization
 ;;; ============================================================================
 
-(defgroup ccalc nil
-  "Major mode for ccalc language."
+(defgroup aoxim nil
+  "Major mode for aoxim language."
   :group 'languages
-  :prefix "ccalc-")
+  :prefix "aoxim-")
 
-(defcustom ccalc-program-name "ccalc"
-  "Program invoked by the `run-ccalc' command."
+(defcustom aoxim-program-name "aoxim"
+  "Program invoked by the `run-aoxim' command."
   :type 'string
-  :group 'ccalc)
+  :group 'aoxim)
 
-(defcustom ccalc-use-colors t
-  "Whether to use --color flag when running ccalc."
+(defcustom aoxim-use-colors t
+  "Whether to use --color flag when running aoxim."
   :type 'boolean
-  :group 'ccalc)
+  :group 'aoxim)
 
-(defcustom ccalc-prompt-regexp "^λ "
-  "Regexp to match ccalc REPL prompt."
+(defcustom aoxim-prompt-regexp "^λ "
+  "Regexp to match aoxim REPL prompt."
   :type 'regexp
-  :group 'ccalc)
+  :group 'aoxim)
 
 ;;; ============================================================================
 ;;; Syntax Table
 ;;; ============================================================================
 
-(defvar ccalc-mode-syntax-table
+(defvar aoxim-mode-syntax-table
   (let ((st (make-syntax-table)))
     ;; Comments: # to end of line
     (modify-syntax-entry ?# "<" st)
@@ -71,27 +71,27 @@
     (modify-syntax-entry ?= "." st)
     (modify-syntax-entry ?! "." st)
     st)
-  "Syntax table for `ccalc-mode'.")
+  "Syntax table for `aoxim-mode'.")
 
 ;;; ============================================================================
 ;;; Keywords and Font-lock
 ;;; ============================================================================
 
-(defconst ccalc-keywords
+(defconst aoxim-keywords
   '("if" "else" "while" "lambda" "const" "import"
     "return" "break" "continue" "True" "False" "struct" "self" "@"))
 
-(defconst ccalc-builtins
+(defconst aoxim-builtins
   '("print" "len" "range" "help" "type" "assert" "test" "link" "extern" "match" "os"))
 
-(defconst ccalc-constants
+(defconst aoxim-constants
   '("None"))
 
-(defvar ccalc-font-lock-keywords
+(defvar aoxim-font-lock-keywords
   `(
-    (,(regexp-opt ccalc-keywords 'symbols) . font-lock-keyword-face)
-    (,(regexp-opt ccalc-builtins 'symbols) . font-lock-builtin-face)
-    (,(regexp-opt ccalc-constants 'symbols) . font-lock-constant-face)
+    (,(regexp-opt aoxim-keywords 'symbols) . font-lock-keyword-face)
+    (,(regexp-opt aoxim-builtins 'symbols) . font-lock-builtin-face)
+    (,(regexp-opt aoxim-constants 'symbols) . font-lock-constant-face)
     ("\\<\\([A-Za-z_][A-Za-z0-9_]*\\)\\s-*("
      (1 font-lock-function-name-face))
     ("^\\s-*\\<\\([A-Za-z_][A-Za-z0-9_]*\\)\\s-*="
@@ -100,14 +100,14 @@
     ("lambda\\s-+\\([A-Za-z_][A-Za-z0-9_]*\\)"
      (1 font-lock-variable-name-face))
     )
-  "Syntax highlighting for `ccalc-mode'.")
+  "Syntax highlighting for `aoxim-mode'.")
 
 ;;; ============================================================================
 ;;; Indentation
 ;;; ============================================================================
 
-(defun ccalc-indent-line ()
-  "Indent current line for ccalc."
+(defun aoxim-indent-line ()
+  "Indent current line for aoxim."
   (interactive)
   (let ((indent-col 0)
         (pos (- (point-max) (point))))
@@ -136,18 +136,18 @@
 
 (eval-after-load 'compile
   '(progn
-     (add-to-list 'compilation-error-regexp-alist 'ccalc)
+     (add-to-list 'compilation-error-regexp-alist 'aoxim)
      (add-to-list 'compilation-error-regexp-alist-alist
-                  '(ccalc
+                  '(aoxim
                     "^\\([^:]+\\):\\([0-9]+\\):\\([0-9]+\\): \\(error\\|warning\\): \\(.*\\)$"
                     1 2 3 (4 . nil) 5))))
 
-(defun ccalc-compile ()
-  "Compile the current ccalc file."
+(defun aoxim-compile ()
+  "Compile the current aoxim file."
   (interactive)
   (let* ((file (buffer-file-name))
-         (command (concat ccalc-program-name " " 
-                         (when ccalc-use-colors "--color ")
+         (command (concat aoxim-program-name " " 
+                         (when aoxim-use-colors "--color ")
                          (shell-quote-argument file))))
     (compile command)))
 
@@ -155,64 +155,64 @@
 ;;; Inferior CCal Mode (REPL)
 ;;; ============================================================================
 
-(defvar inferior-ccalc-mode-map
+(defvar inferior-aoxim-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-l" 'ccalc-load-file)
+    (define-key map "\C-c\C-l" 'aoxim-load-file)
     map)
-  "Keymap for inferior ccalc mode.")
+  "Keymap for inferior aoxim mode.")
 
-(define-derived-mode inferior-ccalc-mode comint-mode "Inferior CCal"
-  "Major mode for interacting with an inferior ccalc process.
+(define-derived-mode inferior-aoxim-mode comint-mode "Inferior CCal"
+  "Major mode for interacting with an inferior aoxim process.
 
-\\{inferior-ccalc-mode-map}"
-  (setq comint-prompt-regexp ccalc-prompt-regexp)
+\\{inferior-aoxim-mode-map}"
+  (setq comint-prompt-regexp aoxim-prompt-regexp)
   (setq comint-use-prompt-regexp t)
   (setq comint-process-echoes nil)
   (setq comint-prompt-read-only t))
 
-(defvar ccalc-buffer nil
-  "The current ccalc process buffer.")
+(defvar aoxim-buffer nil
+  "The current aoxim process buffer.")
 
 ;;;###autoload
-(defun run-ccalc ()
-  "Run an inferior instance of ccalc."
+(defun run-aoxim ()
+  "Run an inferior instance of aoxim."
   (interactive)
-  (let* ((ccalc-program (if ccalc-use-colors
-                            (concat ccalc-program-name " --color")
-                          ccalc-program-name))
+  (let* ((aoxim-program (if aoxim-use-colors
+                            (concat aoxim-program-name " --color")
+                          aoxim-program-name))
          (buffer (comint-check-proc "CCal")))
     (pop-to-buffer-same-window
-     (if (or buffer (not (derived-mode-p 'inferior-ccalc-mode))
+     (if (or buffer (not (derived-mode-p 'inferior-aoxim-mode))
              (comint-check-proc (current-buffer)))
          (get-buffer-create (or buffer "*CCal*"))
        (current-buffer)))
     ;; Create the process if there is none
     (unless buffer
       (make-comint-in-buffer "CCal" buffer
-                            ccalc-program-name nil
-                            (when ccalc-use-colors "--color"))
-      (inferior-ccalc-mode))
-    (setq ccalc-buffer (current-buffer))
+                            aoxim-program-name nil
+                            (when aoxim-use-colors "--color"))
+      (inferior-aoxim-mode))
+    (setq aoxim-buffer (current-buffer))
     buffer))
 
-(defun ccalc-load-file (file)
-  "Load a ccalc FILE into the inferior ccalc process."
+(defun aoxim-load-file (file)
+  "Load a aoxim FILE into the inferior aoxim process."
   (interactive (list (or (buffer-file-name)
-                        (read-file-name "Load ccalc file: " nil nil t))))
+                        (read-file-name "Load aoxim file: " nil nil t))))
   (comint-check-source file)
-  (let ((buffer (or ccalc-buffer (run-ccalc))))
+  (let ((buffer (or aoxim-buffer (run-aoxim))))
     (comint-send-string buffer (format "import \"%s\"\n" file))
     (pop-to-buffer buffer)))
 
-(defun ccalc-send-region (start end)
-  "Send the current region to the inferior ccalc process."
+(defun aoxim-send-region (start end)
+  "Send the current region to the inferior aoxim process."
   (interactive "r")
-  (let ((buffer (or ccalc-buffer (run-ccalc))))
+  (let ((buffer (or aoxim-buffer (run-aoxim))))
     (comint-send-region buffer start end)
     (comint-send-string buffer "\n")))
 
-(defun ccalc-send-definition ()
-  "Send the current definition to the inferior ccalc process."
+(defun aoxim-send-definition ()
+  "Send the current definition to the inferior aoxim process."
   (interactive)
   (save-excursion
     (end-of-line)
@@ -225,61 +225,61 @@
                     (or (looking-at "^[ \t]*$")
                         (looking-at "^[ \t]+"))))
         (forward-line -1))
-      (ccalc-send-region (point) end))))
+      (aoxim-send-region (point) end))))
 
-(defun ccalc-send-buffer ()
-  "Send the entire buffer to the inferior ccalc process."
+(defun aoxim-send-buffer ()
+  "Send the entire buffer to the inferior aoxim process."
   (interactive)
-  (ccalc-send-region (point-min) (point-max)))
+  (aoxim-send-region (point-min) (point-max)))
 
-(defun ccalc-switch-to-repl ()
-  "Switch to the ccalc REPL buffer."
+(defun aoxim-switch-to-repl ()
+  "Switch to the aoxim REPL buffer."
   (interactive)
-  (if (and ccalc-buffer (buffer-live-p ccalc-buffer))
-      (pop-to-buffer ccalc-buffer)
-    (run-ccalc)))
+  (if (and aoxim-buffer (buffer-live-p aoxim-buffer))
+      (pop-to-buffer aoxim-buffer)
+    (run-aoxim)))
 
 ;;; ============================================================================
 ;;; Keymap
 ;;; ============================================================================
 
-(defvar ccalc-mode-map
+(defvar aoxim-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "\C-c\C-l" 'ccalc-load-file)
-    (define-key map "\C-c\C-r" 'ccalc-send-region)
-    (define-key map "\C-c\C-c" 'ccalc-send-definition)
-    (define-key map "\C-c\C-b" 'ccalc-send-buffer)
-    (define-key map "\C-c\C-z" 'ccalc-switch-to-repl)
+    (define-key map "\C-c\C-l" 'aoxim-load-file)
+    (define-key map "\C-c\C-r" 'aoxim-send-region)
+    (define-key map "\C-c\C-c" 'aoxim-send-definition)
+    (define-key map "\C-c\C-b" 'aoxim-send-buffer)
+    (define-key map "\C-c\C-z" 'aoxim-switch-to-repl)
     ;; Compilation
-    (define-key map "\C-c\C-k" 'ccalc-compile)
+    (define-key map "\C-c\C-k" 'aoxim-compile)
     map)
-  "Keymap for `ccalc-mode'.")
+  "Keymap for `aoxim-mode'.")
 
 ;;; ============================================================================
 ;;; Mode Definition
 ;;; ============================================================================
 
 ;;;###autoload
-(define-derived-mode ccalc-mode prog-mode "CCal"
-  "Major mode for editing ccalc math language files.
+(define-derived-mode aoxim-mode prog-mode "CCal"
+  "Major mode for editing aoxim math language files.
 
 Key bindings:
-\\{ccalc-mode-map}"
-  :syntax-table ccalc-mode-syntax-table
-  (setq-local font-lock-defaults '(ccalc-font-lock-keywords))
+\\{aoxim-mode-map}"
+  :syntax-table aoxim-mode-syntax-table
+  (setq-local font-lock-defaults '(aoxim-font-lock-keywords))
   (setq-local comment-start "# ")
   (setq-local comment-end "")
   (setq-local comment-start-skip "#+\\s-*")
-  (setq-local indent-line-function #'ccalc-indent-line)
+  (setq-local indent-line-function #'aoxim-indent-line)
   (setq-local tab-width 4)
   (setq-local electric-indent-chars
               (append '(?\{ ?\} ?\:) electric-indent-chars))
   (setq-local imenu-generic-expression
               '(("Functions" "^\\s-*\\([A-Za-z_][A-Za-z0-9_]*\\)\\s-*(" 1)))
   (setq-local which-func-functions
-              '(ccalc-which-function)))
+              '(aoxim-which-function)))
 
-(defun ccalc-which-function ()
+(defun aoxim-which-function ()
   "Return the current function name for mode-line display."
   (save-excursion
     (beginning-of-line)
@@ -287,27 +287,27 @@ Key bindings:
       (match-string-no-properties 1))))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.calc\\'" . ccalc-mode))
+(add-to-list 'auto-mode-alist '("\\.calc\\'" . aoxim-mode))
 
 ;;; ============================================================================
 ;;; Menu
 ;;; ============================================================================
 
-(easy-menu-define ccalc-mode-menu ccalc-mode-map
+(easy-menu-define aoxim-mode-menu aoxim-mode-map
   "Menu for CCal mode."
   '("CCal"
-    ["Start REPL" run-ccalc t]
-    ["Switch to REPL" ccalc-switch-to-repl t]
+    ["Start REPL" run-aoxim t]
+    ["Switch to REPL" aoxim-switch-to-repl t]
     "---"
-    ["Load File" ccalc-load-file t]
-    ["Send Region" ccalc-send-region (use-region-p)]
-    ["Send Definition" ccalc-send-definition t]
-    ["Send Buffer" ccalc-send-buffer t]
+    ["Load File" aoxim-load-file t]
+    ["Send Region" aoxim-send-region (use-region-p)]
+    ["Send Definition" aoxim-send-definition t]
+    ["Send Buffer" aoxim-send-buffer t]
     "---"
-    ["Compile File" ccalc-compile (buffer-file-name)]
+    ["Compile File" aoxim-compile (buffer-file-name)]
     "---"
     ["Indent Line" indent-for-tab-command t]))
 
-(provide 'ccalc-mode)
+(provide 'aoxim-mode)
 
-;;; ccalc-mode.el ends here
+;;; aoxim-mode.el ends here
