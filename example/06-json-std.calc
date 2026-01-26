@@ -1,0 +1,28 @@
+import "./json.calc"
+
+obj = JObject {}
+
+obj.JsonObjBegin()
+obj.JsonAddString("name", "Urmom")
+obj.JsonAddBoolean("married", False)
+obj.JsonAddNull("health")
+obj.JsonAddArray("boom", [10, 20, 30])
+
+new = JObject {}
+new.JsonObjBegin()
+new.JsonAddString("test", "heello")
+new.JsonAddBoolean("married", True)
+new.JsonObjEnd()
+
+obj.JsonAddObject("NewObject", new)
+
+new = JObject {}
+new.JsonObjBegin()
+new.JsonAddArray("Mm", [20, "HH"])
+new.JsonAddBoolean("married", True)
+new.JsonObjEnd()
+
+obj.JsonAddObject("NewObject2", new)
+obj.JsonObjEnd()
+
+obj.WriteToFile("main.json")

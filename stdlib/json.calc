@@ -1,17 +1,101 @@
-import "file"
-import "map"
-
-struct Json {
-    path,
-    file,
-    obj = map_new()
-    parse(self) = {
-        assert(self.path != None)
-        self.file = File {
-            path: self.path,
-            self.file.open(path)
-        }
-        self.file.open(self.path)
-    }
+stringiy(st) = {
+    st = '"{st}"'
 }
 
+import "file.calc"
+
+struct JObject {
+    content,
+    content_amt,
+    JsonObjBegin(self) = {
+        self.content = '{'
+        self.content_amt = 0
+    }
+
+    JsonObjEnd(self) = {
+        self.content = self.content + "}"
+    }
+
+    _add_comma_if_needed(self) = {
+        if (self.content_amt >= 1): {
+            self.content = self.content + ","
+        }
+    }
+
+    JsonAddString(self, field, value) = {
+        self._add_comma_if_needed()
+        field = stringiy(field)
+        value = stringiy(value)
+        self.content = self.content + field + ":" +value
+        self.content_amt = self.content_amt + 1
+    }
+
+    JsonAddBoolean(self, field, value) = {
+        self._add_comma_if_needed()
+        field = stringiy(field)
+        if value == True: {
+            self.content = self.content + field + ": " +"true"
+        }
+        else: {
+            self.content = self.content + field + ": " + "false"
+        }
+        self.content_amt = self.content_amt + 1
+    }
+
+    JsonAddNull(self, field) = {
+        self._add_comma_if_needed()
+        field = stringiy(field)
+        self.content = self.content + field + ": " + "null"
+        self.content_amt = self.content_amt + 1
+    }
+
+    JsonAddInteger(self, field, value) = {
+        self._add_comma_if_needed()
+        field = stringiy(field)
+        self.content = self.content + field + ":" + "{value}"
+        self.content_amt = self.content_amt + 1
+    }
+
+    JsonAddArray(self, field, arr) = {
+        self._add_comma_if_needed()
+        field = stringiy(field)
+        self.content = self.content + field + ": ["
+
+        idx = 0
+        for i: (arr) {
+            if type(i) == "string": {
+                i = stringiy(i)
+                self.content = self.content + i
+            }
+            else: {
+                self.content = self.content + "{i}"
+            }
+
+            if (len(arr) - 1 > idx): {
+                self.content = self.content + ","
+            }
+            idx = idx + 1
+        }
+
+        self.content = self.content + "]"
+        self.content_amt = self.content_amt + 1
+    }
+    JsonAddObject(self, field, nested_obj) = {
+        self._add_comma_if_needed()
+        field = stringiy(field)
+        self.content = self.content + field + ": " + nested_obj.content
+        self.content_amt = self.content_amt + 1
+    }
+    WriteToFile(self, file_name) = {
+        file = File {
+            path: "{file_name}",
+            perm: "wb",
+        }
+        file.open()
+        file.write(self.content)
+        file.close()
+    }
+    StructAsJson(self, s) = {
+        print(type(s))
+    }
+}

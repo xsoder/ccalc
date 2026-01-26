@@ -1290,8 +1290,14 @@ AST *parse_string_interpolation(const char *str) {
   bool has_interp = false;
   for (const char *p = str; *p; p++) {
     if (*p == '{' && *(p + 1) != '{') {
-      has_interp = true;
-      break;
+      const char *check = p + 1;
+      if (is_ident_start(*check)) {
+        while (*check && is_ident(*check)) check++;
+        if (*check == '}') {
+          has_interp = true;
+          break;
+        }
+      }
     }
   }
 
@@ -1318,6 +1324,21 @@ AST *parse_string_interpolation(const char *str) {
       *buf_ptr++ = '}';
       p += 2;
     } else if (*p == '{') {
+      const char *check = p + 1;
+      bool valid_interp = false;
+
+      if (is_ident_start(*check)) {
+        while (*check && is_ident(*check)) check++;
+        if (*check == '}') {
+          valid_interp = true;
+        }
+      }
+
+      if (!valid_interp) {
+        *buf_ptr++ = *p++;
+        continue;
+      }
+
       *buf_ptr = '\0';
       parts[count] = xstrdup(buffer);
       buf_ptr = buffer;
@@ -2837,7 +2858,6 @@ Value call_extern(ExternFunc *ext, Value *args, size_t argc) {
       long, long long, long long, long long, long long, long long, long
       long))func)(params[0], params[1], params[2], params[3], params[4],
                   params[5], params[6], params[7], params[8], params[9]); break;
-                  // Add more cases as needed up to a reasonable limit
     default:
       return v_error("Result unreasonable value it reaches");
   }
@@ -3268,7 +3288,7 @@ Value eval(AST *a, Env *env) {
           Value *vals = xmalloc(sizeof(Value) * a->call.argc);
           for (size_t i = 0; i < a->call.argc; i++)
             vals[i] = eval(a->call.args[i], env);
-          return call_extern(ext, vals, a->call.argc);  // Pass argc
+          return call_extern(ext, vals, a->call.argc);
   }
       }
 
