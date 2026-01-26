@@ -438,6 +438,7 @@ bool value_is_truthy(Value v) {
   }
   return false;
 }
+
 bool values_equal(Value a, Value b) {
   if (a.type != b.type) return false;
   switch (a.type) {
@@ -630,7 +631,16 @@ typedef enum {
   T_STRUCT,
   T_AT,
   T_EOF,
-  T_ERROR
+  T_ERROR,
+  T_DECR,
+  T_INCREMENT,
+  T_PLUS_ASSIGN,
+  T_MINUS_ASSIGN,
+  T_STAR_ASSIGN,
+  T_SLASH_ASSIGN,
+  T_MOD_ASSIGN,
+  T_FLOORDIV_ASSIGN,
+  T_FLOORDIV,
 } TokType;
 
 typedef struct {
@@ -740,6 +750,24 @@ const char* token_name(TokType t) {
       return "match";
     case T_ERROR:
       return "error";
+    case T_DECR:
+      return "'--'";
+    case T_INCREMENT:
+      return "'++'";
+    case T_PLUS_ASSIGN:
+      return "'+='";
+    case T_MINUS_ASSIGN:
+      return "'-='";
+    case T_STAR_ASSIGN:
+      return "'*='";
+    case T_SLASH_ASSIGN:
+      return "'/='";
+    case T_MOD_ASSIGN:
+      return "'%='";
+    case T_FLOORDIV_ASSIGN:
+      return "'//='";
+    case T_FLOORDIV:
+      return "'//'";
   }
   return "unknown";
 }
@@ -770,6 +798,77 @@ void next_token(void) {
   if (!*src) {
     tok.type = T_EOF;
     strcpy(tok.text, "");
+    return;
+  }
+
+  if (*src == '+' && *(src + 1) == '+') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_INCREMENT;
+    strcpy(tok.text, "++");
+    return;
+  }
+
+  if (*src == '-' && *(src + 1) == '-') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_DECR;
+    strcpy(tok.text, "--");
+    return;
+  }
+
+  if (*src == '+' && *(src + 1) == '=') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_PLUS_ASSIGN;
+    strcpy(tok.text, "+=");
+    return;
+  }
+
+  if (*src == '-' && *(src + 1) == '=') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_MINUS_ASSIGN;
+    strcpy(tok.text, "-=");
+    return;
+  }
+
+  if (*src == '*' && *(src + 1) == '=') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_STAR_ASSIGN;
+    strcpy(tok.text, "*=");
+    return;
+  }
+
+  if (*src == '/' && *(src + 1) == '/') {
+    if (*(src + 2) == '=') {
+      src += 3;
+      current_loc.column += 3;
+      tok.type = T_FLOORDIV_ASSIGN;
+      strcpy(tok.text, "//=");
+      return;
+    }
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_FLOORDIV;
+    strcpy(tok.text, "//");
+    return;
+  }
+
+  if (*src == '/' && *(src + 1) == '=') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_SLASH_ASSIGN;
+    strcpy(tok.text, "/=");
+    return;
+  }
+
+  if (*src == '%' && *(src + 1) == '=') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_MOD_ASSIGN;
+    strcpy(tok.text, "%=");
     return;
   }
 
@@ -1046,7 +1145,10 @@ typedef enum {
   A_STRUCT_INIT,
   A_MEMBER,
   A_MEMBER_ASSIGN,
-  A_ASSIGN_UNPACK
+  A_ASSIGN_UNPACK,
+  A_INCREMENT,
+  A_DECREMENT,
+  A_COMPOUND_ASSIGN
 } ASTType;
 
 struct AST {
@@ -1153,6 +1255,18 @@ struct AST {
       size_t count;
       AST* value;
     } assign_unpack;
+    struct {
+      char* name;
+      char op;
+    } compound_assign;
+    struct {
+      char* name;
+      bool is_post;  // TODO: Prefix assignment --x not work
+    } increment;
+    struct {
+      char* name;
+      bool is_post;
+    } decrement;
   };
 };
 
@@ -1419,6 +1533,37 @@ AST* parse_primary(void) {
 
   if (tok.type == T_MATCH) {
     return parse_match();
+  }
+  if (tok.type == T_INCREMENT) {
+    SourceLoc inc_loc = tok.loc;
+    next_token();
+    AST* operand = parse_primary();
+    if (operand->type == A_VAR) {
+      AST* incr = ast_new(A_INCREMENT);
+      incr->loc = inc_loc;
+      incr->increment.name = operand->name;
+      incr->increment.is_post = false;
+      return incr;
+    } else {
+      error_at(inc_loc, "++ requires variable name");
+      return ast_new(A_INT);
+    }
+  }
+
+  if (tok.type == T_DECR) {
+    SourceLoc dec_loc = tok.loc;
+    next_token();
+    AST* operand = parse_primary();
+    if (operand->type == A_VAR) {
+      AST* decr = ast_new(A_DECREMENT);
+      decr->loc = dec_loc;
+      decr->decrement.name = operand->name;
+      decr->decrement.is_post = false;
+      return decr;
+    } else {
+      error_at(dec_loc, "-- requires variable name");
+      return ast_new(A_INT);
+    }
   }
 
   if (tok.type == T_LAMBDA) {
@@ -2102,6 +2247,76 @@ AST* parse_stmt(void) {
       ma->member_assign.value = rhs;
       return ma;
     }
+  }
+  if (tok.type == T_PLUS_ASSIGN || tok.type == T_MINUS_ASSIGN ||
+      tok.type == T_STAR_ASSIGN || tok.type == T_SLASH_ASSIGN ||
+      tok.type == T_MOD_ASSIGN || tok.type == T_FLOORDIV_ASSIGN) {
+    if (expr->type != A_VAR) {
+      error_at(expr->loc, "compound assignment requires variable on left side");
+      return expr;
+    }
+
+    char op;
+    switch (tok.type) {
+      case T_PLUS_ASSIGN:
+        op = '+';
+        break;
+      case T_MINUS_ASSIGN:
+        op = '-';
+        break;
+      case T_STAR_ASSIGN:
+        op = '*';
+        break;
+      case T_SLASH_ASSIGN:
+        op = '/';
+        break;
+      case T_MOD_ASSIGN:
+        op = '%';
+        break;
+      case T_FLOORDIV_ASSIGN:
+        op = 'F';
+        break;
+      default:
+        op = '+';
+        break;
+    }
+
+    next_token();
+    AST* rhs = parse_expr();
+
+    AST* compound = ast_new(A_COMPOUND_ASSIGN);
+    compound->compound_assign.name = expr->name;
+    compound->compound_assign.op = op;
+
+    AST* bin = ast_new(A_BINOP);
+    bin->bin.op = op;
+    bin->bin.l = expr;
+    bin->bin.r = rhs;
+
+    AST* assign = ast_new(A_ASSIGN);
+    assign->assign.name = expr->name;
+    assign->assign.value = bin;
+
+    return assign;
+  }
+  if (tok.type == T_INCREMENT || tok.type == T_DECR) {
+    if (expr->type != A_VAR) {
+      error_at(expr->loc, "increment/decrement requires variable");
+      return expr;
+    }
+
+    bool is_incr = (tok.type == T_INCREMENT);
+    next_token();
+
+    AST* result = is_incr ? ast_new(A_INCREMENT) : ast_new(A_DECREMENT);
+    if (is_incr) {
+      result->increment.name = expr->name;
+      result->increment.is_post = true;
+    } else {
+      result->decrement.name = expr->name;
+      result->decrement.is_post = true;
+    }
+    return result;
   }
 
   return expr;
@@ -3326,6 +3541,18 @@ Value eval(AST* a, Env* env) {
         v.s = s;
         return v;
       }
+      if (a->bin.op == 'F') {
+        if (l.type == VAL_INT && r.type == VAL_INT) {
+          if (r.i == 0) return v_error("division by zero");
+          return v_int(l.i / r.i);
+        }
+        if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE) {
+          double ld = value_to_double(l);
+          double rd = value_to_double(r);
+          if (rd == 0.0) return v_error("division by zero");
+          return v_double(floor(ld / rd));
+        }
+      }
       return v_error("invalid operand types for operation");
     }
     case A_CALL: {
@@ -3647,6 +3874,25 @@ Value eval(AST* a, Env* env) {
 
       return v_error("cannot assign to member of non-struct");
     }
+    case A_INCREMENT: {
+      Value v = env_get(env, a->increment.name);
+      if (v.type == VAL_INT) {
+        Value new_val = v_int(v.i + 1);
+        env_set(env, a->increment.name, new_val, false);
+        return a->increment.is_post ? v : new_val;
+      }
+      return v_error("increment requires integer variable");
+    }
+
+    case A_DECREMENT: {
+      Value v = env_get(env, a->decrement.name);
+      if (v.type == VAL_INT) {
+        Value new_val = v_int(v.i - 1);
+        env_set(env, a->decrement.name, new_val, false);
+        return a->decrement.is_post ? v : new_val;
+      }
+      return v_error("decrement requires integer variable");
+    }
 
     case A_ASSIGN_UNPACK: {
       Value rhs = eval(a->assign_unpack.value, env);
@@ -3676,6 +3922,8 @@ Value eval(AST* a, Env* env) {
       }
       return v_null();
     }
+    case A_COMPOUND_ASSIGN:
+      return v_error("compound assign not implemented in eval");
   }
   return v_null();
 }
