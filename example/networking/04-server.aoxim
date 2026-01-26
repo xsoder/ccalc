@@ -1,4 +1,4 @@
-import "net-module.calc"
+import "./net-module.aoxim"
 
 server_type = "tcp"
 port = 8080
