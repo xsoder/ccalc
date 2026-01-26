@@ -13,7 +13,7 @@
 ;; similar to Haskell mode.
 ;;
 ;; Usage:
-;;   M-x aoxim-mode         - Enable major mode for .calc files
+;;   M-x aoxim-mode         - Enable major mode for .aoxim files
 ;;   M-x run-aoxim          - Start interactive REPL
 ;;   C-c C-l                - Load current file into REPL
 ;;   C-c C-r                - Send region to REPL
@@ -152,7 +152,7 @@
     (compile command)))
 
 ;;; ============================================================================
-;;; Inferior CCal Mode (REPL)
+;;; Inferior Aoxim Mode (REPL)
 ;;; ============================================================================
 
 (defvar inferior-aoxim-mode-map
@@ -161,7 +161,7 @@
     map)
   "Keymap for inferior aoxim mode.")
 
-(define-derived-mode inferior-aoxim-mode comint-mode "Inferior CCal"
+(define-derived-mode inferior-aoxim-mode comint-mode "Inferior Aoxim"
   "Major mode for interacting with an inferior aoxim process.
 
 \\{inferior-aoxim-mode-map}"
@@ -180,15 +180,15 @@
   (let* ((aoxim-program (if aoxim-use-colors
                             (concat aoxim-program-name " --color")
                           aoxim-program-name))
-         (buffer (comint-check-proc "CCal")))
+         (buffer (comint-check-proc "Aoxim")))
     (pop-to-buffer-same-window
      (if (or buffer (not (derived-mode-p 'inferior-aoxim-mode))
              (comint-check-proc (current-buffer)))
-         (get-buffer-create (or buffer "*CCal*"))
+         (get-buffer-create (or buffer "*Aoxim*"))
        (current-buffer)))
     ;; Create the process if there is none
     (unless buffer
-      (make-comint-in-buffer "CCal" buffer
+      (make-comint-in-buffer "Aoxim" buffer
                             aoxim-program-name nil
                             (when aoxim-use-colors "--color"))
       (inferior-aoxim-mode))
@@ -260,7 +260,7 @@
 ;;; ============================================================================
 
 ;;;###autoload
-(define-derived-mode aoxim-mode prog-mode "CCal"
+(define-derived-mode aoxim-mode prog-mode "Aoxim"
   "Major mode for editing aoxim math language files.
 
 Key bindings:
@@ -287,15 +287,15 @@ Key bindings:
       (match-string-no-properties 1))))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.calc\\'" . aoxim-mode))
+(add-to-list 'auto-mode-alist '("\\.aoxim\\'" . aoxim-mode))
 
 ;;; ============================================================================
 ;;; Menu
 ;;; ============================================================================
 
 (easy-menu-define aoxim-mode-menu aoxim-mode-map
-  "Menu for CCal mode."
-  '("CCal"
+  "Menu for Aoxim mode."
+  '("Aoxim"
     ["Start REPL" run-aoxim t]
     ["Switch to REPL" aoxim-switch-to-repl t]
     "---"

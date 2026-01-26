@@ -1,6 +1,6 @@
 augroup aoxim_filetype
   autocmd!
-  autocmd BufRead,BufNewFile *.calc setfiletype aoxim
+  autocmd BufRead,BufNewFile *.aoxim setfiletype aoxim
 augroup END
 
 function! s:SetupSyntax()
