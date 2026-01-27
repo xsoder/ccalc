@@ -2,7 +2,7 @@ stringiy(st) = {
     st = '"{st}"'
 }
 
-import "file.calc"
+import "file.aoxim"
 
 struct JObject {
     content,

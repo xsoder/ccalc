@@ -1,0 +1,8 @@
+x = 0
+xx = []
+
+for i: 10..0 {
+    xx.append(x++)
+}
+
+print(xx)

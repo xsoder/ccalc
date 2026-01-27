@@ -1,0 +1,9 @@
+For variadics with C FFI.
+
+If I have for example printf.
+
+```
+extern printf = printf(string, $args): int
+```
+but if args > 20 it will fail which is the problem cuz I do not do proper handeling of c FFI. So migration to libffi.
+[libffi](https://github.com/libffi/libffi)

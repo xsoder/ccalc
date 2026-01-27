@@ -1,4 +1,4 @@
-import "file"
+import "file.aoxim"
 
 file = File {
     path: "main.txt",
