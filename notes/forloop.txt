@@ -65,3 +65,12 @@ for i, j: (array) {
 }
 
 ```
+# TODO: Add varaible based ranges in the for loop
+
+Later.
+
+const SIZE = 10
+for i, : 0..SIZE {
+    print("Key: % -> %", i, j)
+}
+
