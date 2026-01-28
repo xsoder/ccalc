@@ -22,5 +22,4 @@ All examples are in example but to get started use the following commands for yo
 
 ## Fully Turing complete
 It is fully turing complete and for those interested about rule110 you can read about it in [RULE110](https://en.wikipedia.org/wiki/Rule_110).
-
 ![ALT](Rule110.png)
