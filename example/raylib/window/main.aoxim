@@ -1,6 +1,9 @@
 @os "win32" {
     link "./raylib/lib/raylib.dll"
 }
+@os "linux" {
+    link "./raylib/lib/raylib.dll"
+}
 
 extern InitWindow = InitWindow(int, int, string): void
 extern WindowShouldClose = WindowShouldClose(): bool
@@ -14,9 +17,8 @@ extern GetScreenHeight = GetScreenHeight(): int
 extern CloseWindow = CloseWindow(): void
 extern DrawText = DrawText(string, int, int, int , int): void
 extern GetFPS = GetFPS(): int
-
 const BACKGROUND = 0xFF181818
-const FOREGROUND = 0xFF0000FF
+const FOREGROUND = 0xFF00FF00
 const SIZE = 100
 
 InitWindow(800, 600, "Urmom")

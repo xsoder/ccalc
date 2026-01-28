@@ -190,7 +190,12 @@ typedef enum {
   FFI_CHAR,
   FFI_BOOL,
   FFI_VARIADIC,
-  FFI_ANY
+  FFI_ANY,
+  FFI_PTR_INT,
+  FFI_PTR_DOUBLE,
+  FFI_PTR_CHAR,
+  FFI_PTR_VOID,
+  FFI_PTR_PTR
 } FFIType;
 
 typedef struct {
@@ -286,6 +291,11 @@ struct Value {
     bool b;
     Tuple* tuple;
     void* ptr;
+    struct {
+      void* ptr;
+      FFIType ptr_type;
+      size_t ptr_size;
+    } ptr_info;
     StructDef* struct_def;
     StructVal* struct_val;
     Value* any_val;
@@ -342,13 +352,15 @@ Value v_error(const char* msg) {
   return v;
 }
 
-Value v_ptr(void* p) {
+Value v_ptr_with_type(void* p, FFIType ptr_type) {
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_PTR;
   v.ptr = p;
   return v;
 }
+
+Value v_ptr(void* p) { return v_ptr_with_type(p, FFI_VOID); }
 
 Value v_char(char c) {
   Value v;
@@ -563,6 +575,7 @@ struct Env {
   char* name;
   Value value;
   bool is_const;
+  Value* value_ptr;
   Env* next;
 };
 
@@ -584,6 +597,9 @@ void env_set(Env* env, const char* name, Value v, bool is_const) {
         return;
       }
       e->value = v;
+      if (e->value_ptr) {
+        *e->value_ptr = v;
+      }
       e->is_const = is_const;
       return;
     }
@@ -592,6 +608,12 @@ void env_set(Env* env, const char* name, Value v, bool is_const) {
   n->name = xstrdup(name);
   n->value = v;
   n->is_const = is_const;
+
+  n->value_ptr = malloc(sizeof(Value));
+  if (n->value_ptr) {
+    *n->value_ptr = v;
+  }
+
   n->next = env->next;
   env->next = n;
 }
@@ -601,6 +623,123 @@ Value env_get(Env* env, const char* name) {
     if (e->name && !strcmp(e->name, name)) return e->value;
   }
   return v_null();
+}
+
+Value* env_get_address(Env* env, const char* name) {
+  for (Env* e = env; e; e = e->next) {
+    if (e->name && !strcmp(e->name, name)) {
+      return e->value_ptr;
+    }
+  }
+  return NULL;
+}
+
+typedef struct {
+  void* address;
+  size_t size;
+  FFIType type;
+  Value value;
+  bool allocated;
+} MemoryBlock;
+
+MemoryBlock* memory_blocks = NULL;
+size_t memory_blocks_count = 0;
+size_t memory_blocks_capacity = 0;
+
+void* allocate_memory(size_t size, FFIType type) {
+  void* ptr = malloc(size);
+  if (!ptr) return NULL;
+
+  // Track the allocation
+  if (memory_blocks_count >= memory_blocks_capacity) {
+    size_t new_cap =
+        memory_blocks_capacity == 0 ? 16 : memory_blocks_capacity * 2;
+    MemoryBlock* new_blocks =
+        realloc(memory_blocks, sizeof(MemoryBlock) * new_cap);
+    if (!new_blocks) {
+      free(ptr);
+      return NULL;
+    }
+    memory_blocks = new_blocks;
+    memory_blocks_capacity = new_cap;
+  }
+
+  memory_blocks[memory_blocks_count].address = ptr;
+  memory_blocks[memory_blocks_count].size = size;
+  memory_blocks[memory_blocks_count].type = type;
+  memory_blocks[memory_blocks_count].allocated = true;
+  memory_blocks_count++;
+
+  return ptr;
+}
+
+MemoryBlock* find_memory_block(void* ptr) {
+  for (size_t i = 0; i < memory_blocks_count; i++) {
+    if (memory_blocks[i].address == ptr && memory_blocks[i].allocated) {
+      return &memory_blocks[i];
+    }
+  }
+  return NULL;
+}
+
+void store_value_at_address(void* address, Value v, FFIType type) {
+  MemoryBlock* block = find_memory_block(address);
+
+  switch (type) {
+    case FFI_INT:
+    case FFI_LONG:
+    case FFI_BOOL:
+      if (v.type == VAL_INT) {
+        *(long long*)address = v.i;
+      } else if (v.type == VAL_DOUBLE) {
+        *(long long*)address = (long long)v.d;
+      } else if (v.type == VAL_BOOL) {
+        *(long long*)address = v.b ? 1 : 0;
+      }
+      break;
+
+    case FFI_DOUBLE:
+    case FFI_FLOAT:
+      if (v.type == VAL_DOUBLE) {
+        *(double*)address = v.d;
+      } else if (v.type == VAL_INT) {
+        *(double*)address = (double)v.i;
+      }
+      break;
+
+    case FFI_CHAR:
+      if (v.type == VAL_CHAR) {
+        *(char*)address = v.c;
+      } else if (v.type == VAL_INT) {
+        *(char*)address = (char)v.i;
+      }
+      break;
+
+    case FFI_STRING:
+      if (v.type == VAL_STRING) {
+        char** str_ptr = (char**)address;
+        *str_ptr = xstrdup(v.s);
+      }
+      break;
+
+    case FFI_PTR:
+      if (v.type == VAL_PTR) {
+        *(void**)address = v.ptr;
+      } else if (v.type == VAL_INT) {
+        *(void**)address = (void*)v.i;
+      }
+      break;
+
+    default:
+      if (block && block->size >= sizeof(Value)) {
+        memcpy(address, &v, sizeof(Value));
+      }
+      break;
+  }
+
+  if (block) {
+    block->value = v;
+  }
 }
 
 typedef enum {
@@ -665,7 +804,9 @@ typedef enum {
   T_NULLPTR,
   T_PTR,
   T_OR,
-  T_AND
+  T_AND,
+  T_DEFER,
+  T_AMPERSAND
 } TokType;
 
 typedef struct {
@@ -805,6 +946,10 @@ const char* token_name(TokType t) {
       return "'and'";
     case T_OR:
       return "'or'";
+    case T_DEFER:
+      return "'defer'";
+    case T_AMPERSAND:
+      return "'&'";
   }
   return "unknown";
 }
@@ -1068,6 +1213,14 @@ void next_token(void) {
     return;
   }
 
+  if (!strncmp(src, "defer", 5) && !is_ident(*(src + 5))) {
+    src += 5;
+    current_loc.column += 5;
+    tok.type = T_DEFER;
+    strcpy(tok.text, "defer");
+    return;
+  }
+
   if (is_ident_start(*src)) {
     char* p = tok.text;
     while (is_ident(*src)) {
@@ -1237,6 +1390,10 @@ void next_token(void) {
       tok.type = T_AT;
       strcpy(tok.text, "@");
       return;
+    case '&':
+      tok.type = T_AMPERSAND;
+      strcpy(tok.text, "&");
+      return;
   }
 
   snprintf(tok.text, sizeof(tok.text), "%c", ch);
@@ -1278,7 +1435,9 @@ typedef enum {
   A_DECREMENT,
   A_CHAR,
   A_PTR_LITERAL,
-  A_COMPOUND_ASSIGN
+  A_DEFER,
+  A_COMPOUND_ASSIGN,
+  A_ADDROF
 } ASTType;
 
 struct AST {
@@ -1393,6 +1552,12 @@ struct AST {
     struct {
       void* addr;
     } ptr_lit;
+    struct {
+      AST* ptr_expr;
+    } deref;
+    struct {
+      char* var_name;
+    } addrof;
     struct {
       char* name;
       bool is_post;
@@ -1822,6 +1987,35 @@ AST* parse_primary(void) {
       error_at(dec_loc, "-- requires variable name");
       return ast_new(A_INT);
     }
+  }
+
+  if (tok.type == T_DEFER) {
+    SourceLoc defer_loc = tok.loc;
+    next_token();
+    AST* expr = parse_primary();
+
+    AST* deref = ast_new(A_DEFER);
+    deref->loc = defer_loc;
+    deref->deref.ptr_expr = expr;
+    return deref;
+  }
+
+  if (tok.type == T_AMPERSAND) {
+    SourceLoc amp_loc = tok.loc;
+    next_token();
+
+    if (tok.type != T_IDENT) {
+      error_at(tok.loc, "& operator requires a variable name");
+      return ast_new(A_INT);
+    }
+
+    char* var_name = xstrdup(tok.text);
+    next_token();
+
+    AST* addrof = ast_new(A_ADDROF);
+    addrof->loc = amp_loc;
+    addrof->addrof.var_name = var_name;
+    return addrof;
   }
 
   if (tok.type == T_LAMBDA) {
@@ -2685,6 +2879,82 @@ void print_value(Value v) {
       printf("%s)%s", color, reset);
       break;
   }
+}
+
+Value read_from_memory(void* address, FFIType type) {
+  if (!address) {
+    return v_error("null pointer dereference");
+  }
+
+  switch (type) {
+    case FFI_INT:
+    case FFI_LONG:
+    case FFI_BOOL:
+      return v_int(*(long long*)address);
+
+    case FFI_DOUBLE:
+    case FFI_FLOAT:
+      return v_double(*(double*)address);
+
+    case FFI_CHAR:
+      return v_char(*(char*)address);
+
+    case FFI_STRING: {
+      char** str_ptr = (char**)address;
+      if (*str_ptr) {
+        return v_str(*str_ptr);
+      }
+      return v_null();
+    }
+
+    case FFI_PTR:
+    case FFI_PTR_VOID:
+      return v_ptr(*(void**)address);
+
+    case FFI_PTR_INT:
+      return v_int(**(long long**)address);
+
+    case FFI_PTR_DOUBLE:
+      return v_double(**(double**)address);
+
+    case FFI_PTR_CHAR:
+      return v_char(**(char**)address);
+
+    case FFI_PTR_PTR:
+      return v_ptr(**(void***)address);
+
+    default: {
+      MemoryBlock* block = find_memory_block(address);
+      if (block) {
+        return read_from_memory(address, block->type);
+      }
+      return v_int(*(long long*)address);
+    }
+  }
+}
+
+Value builtin_store_ptr(Value* args, size_t argc) {
+  if (argc != 2) {
+    return v_error("_store_ptr() takes exactly 2 arguments (ptr, value)");
+  }
+
+  Value ptr_val = args[0];
+  Value value_to_store = args[1];
+
+  if (ptr_val.type != VAL_PTR) {
+    return v_error("first argument must be a pointer");
+  }
+
+  if (ptr_val.ptr == NULL) {
+    return v_error("cannot store to null pointer");
+  }
+
+  MemoryBlock* block = find_memory_block(ptr_val.ptr);
+  FFIType ptr_type = block ? block->type : FFI_INT;
+
+  store_value_at_address(ptr_val.ptr, value_to_store, ptr_type);
+
+  return value_to_store;
 }
 
 Value builtin_print(Value* args, size_t argc) {
@@ -3646,9 +3916,51 @@ Value eval(AST* a, Env* env) {
     case A_CHAR:
       return v_char(a->c);
 
+    case A_DEFER: {
+      Value ptr_val = eval(a->deref.ptr_expr, env);
+
+      if (ptr_val.type == VAL_ERROR) return ptr_val;
+
+      if (ptr_val.type == VAL_PTR) {
+        if (ptr_val.ptr == NULL) {
+          return v_error("dereferencing null pointer");
+        }
+
+        Value* val_ptr = (Value*)ptr_val.ptr;
+
+        if (val_ptr->type <= VAL_ANY) {
+          return *val_ptr;
+        }
+
+        MemoryBlock* block = find_memory_block(ptr_val.ptr);
+        FFIType ptr_type = block ? block->type : FFI_INT;
+
+        return read_from_memory(ptr_val.ptr, ptr_type);
+      }
+    }
+
+    case A_ADDROF: {
+      Value* addr = env_get_address(env, a->addrof.var_name);
+
+      if (!addr) {
+        char err[256];
+        snprintf(err, sizeof(err),
+                 "cannot take address of undefined variable '%s'",
+                 a->addrof.var_name);
+        return v_error(err);
+      }
+
+      return v_ptr((void*)addr);
+    }
+
     case A_PTR_LITERAL: {
       if (a->list.count > 0) {
         Value v = eval(a->list.items[0], env);
+
+        if (v.type != VAL_INT && v.type != VAL_NULL && v.type != VAL_PTR) {
+          return v_error(
+              "pointer can only be created from int, null, or another pointer");
+        }
 
         if (v.type == VAL_INT) {
           return v_ptr((void*)v.i);

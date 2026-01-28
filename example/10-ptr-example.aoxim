@@ -1,0 +1,7 @@
+value = 20
+ptr p = &value
+
+print(p)
+
+x = defer p
+print(x)

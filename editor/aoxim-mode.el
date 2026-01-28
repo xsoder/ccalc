@@ -82,7 +82,7 @@
     "return" "break" "continue" "True" "False" "struct" "self" "@"))
 
 (defconst aoxim-builtins
-  '("print" "len" "range" "help" "type" "assert" "test" "link" "extern" "match" "os" "ptr" "or" "and"))
+  '("print" "len" "range" "help" "type" "assert" "test" "link" "extern" "match" "os" "ptr" "or" "and" "defer"))
 
 (defconst aoxim-constants
   '("None"))
