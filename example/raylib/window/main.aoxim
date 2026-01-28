@@ -11,59 +11,41 @@ extern DrawRectangle = DrawRectangle(int, int, int, int, int): void
 extern SetTargetFPS = SetTargetFPS(int): void
 extern GetScreenWidth = GetScreenWidth(): int
 extern GetScreenHeight = GetScreenHeight(): int
+extern CloseWindow = CloseWindow(): void
+extern DrawText = DrawText(string, int, int, int , int): void
+extern GetFPS = GetFPS(): int
 
-# FIXME: Allow char literal comparision
-# Erro message when trying to directly use char literal and make it convertable to int
-hexchar(i) = {
-    tem = 0
-    if int(i) >= int('0'): {
-        if int(i) <= int('9'): {  tem = int(i) - int('0') }
-    } 
-    match i: {
-        'A': {tem = 10}
-        'B': {tem = 11}
-        'C': {tem = 12}
-        'D': {tem = 13}
-        'E': {tem = 14}
-        'F': {tem = 15}
-    }
-    return tem
-}
-
-
-# TODO: Lower cases is not implemented.
-hex(arr) = {
-    # TODO: Can be extended with _
-    # Must be length 19 because we are doing 0x00000000_FFFFFFFF
-    assert(len(arr) == 19)
-    acc = 0
-    if arr[0] == '0': {
-       if arr[1] == 'x': {
-       for j: 2..19 {
-           i = arr[j]
-           if j == 10: continue
-           acc = (acc * 16) + hexchar(i)
-          }
-       }
-    }
-    acc
-}
-
-const BACKGROUND = hex("0x00000000_18181800")
-const FOREGROUND = hex("0x00000000_FF0000FF")
+const BACKGROUND = 0xFF181818
+const FOREGROUND = 0xFF0000FF
 const SIZE = 100
 
 InitWindow(800, 600, "Urmom")
 x = 0
 y = 0
 
+dirx = 1
+diry = 1
+const SPEED = 5
 SetTargetFPS(60)
 
 while WindowShouldClose() == 0 {
     BeginDrawing()
     ClearBackground(BACKGROUND)
-    x += 1
-    y += 1
+    x = x + dirx * SPEED
+    y = y + diry * SPEED
+    
+    if (x <= 0 and dirx < 0) or (x + SIZE >= GetScreenWidth() and dirx > 0): {
+        dirx *= -1
+    }
+
+    if (y <= 0 and diry < 0) or (y + SIZE >= GetScreenHeight() and diry > 0): {
+        diry *= -1
+    }
+
+
+    DrawText("Pogress: {GetFPS()}", 0, 0, 50, FOREGROUND / 2)
     DrawRectangle(x, y, SIZE, SIZE, FOREGROUND)
     EndDrawing()
 }
+
+CloseWindow()

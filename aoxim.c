@@ -664,6 +664,8 @@ typedef enum {
   T_HEX,
   T_NULLPTR,
   T_PTR,
+  T_OR,
+  T_AND
 } TokType;
 
 typedef struct {
@@ -799,6 +801,10 @@ const char* token_name(TokType t) {
       return "'nullptr'";
     case T_PTR:
       return "'ptr'";
+    case T_AND:
+      return "'and'";
+    case T_OR:
+      return "'or'";
   }
   return "unknown";
 }
@@ -1106,6 +1112,10 @@ void next_token(void) {
       tok.type = T_NULLPTR;
     else if (!strcmp(tok.text, "ptr"))
       tok.type = T_PTR;
+    else if (!strcmp(tok.text, "or"))
+      tok.type = T_OR;
+    else if (!strcmp(tok.text, "and"))
+      tok.type = T_AND;
     else
       tok.type = T_IDENT;
     return;
@@ -1397,6 +1407,9 @@ struct AST {
 AST* parse_primary(void);
 AST* parse_expr(void);
 AST* parse_stmt(void);
+AST* parse_comparison(void);
+AST* parse_logical_or(void);
+AST* parse_logical_and(void);
 
 AST* ast_new(ASTType t) {
   AST* a = xmalloc(sizeof(AST));
@@ -1614,6 +1627,34 @@ AST* parse_block(void) {
   b->block.stmts = stmts;
   b->block.count = n;
   return b;
+}
+
+AST* parse_logical_or(void) {
+  AST* a = parse_logical_and();
+  while (tok.type == T_OR) {
+    next_token();
+    AST* b = parse_logical_and();
+    AST* n = ast_new(A_BINOP);
+    n->bin.op = '|';
+    n->bin.l = a;
+    n->bin.r = b;
+    a = n;
+  }
+  return a;
+}
+
+AST* parse_logical_and(void) {
+  AST* a = parse_comparison();
+  while (tok.type == T_AND) {
+    next_token();
+    AST* b = parse_comparison();
+    AST* n = ast_new(A_BINOP);
+    n->bin.op = '&';
+    n->bin.l = a;
+    n->bin.r = b;
+    a = n;
+  }
+  return a;
 }
 
 AST* parse_string_interpolation(const char* str) {
@@ -2141,7 +2182,7 @@ AST* parse_comparison(void) {
 AST* parse_expr(void) {
   if (tok.type == T_IF) {
     next_token();
-    AST* cond = parse_comparison();
+    AST* cond = parse_logical_or();
 
     AST* then_block;
     AST* else_block = NULL;
@@ -2178,7 +2219,7 @@ AST* parse_expr(void) {
 
   if (tok.type == T_WHILE) {
     next_token();
-    AST* cond = parse_comparison();
+    AST* cond = parse_logical_or();
     AST* body;
 
     if (tok.type == T_LC)
@@ -2228,7 +2269,7 @@ AST* parse_expr(void) {
     }
     next_token();
 
-    AST* iter = parse_comparison();
+    AST* iter = parse_logical_or();
 
     AST* body;
     if (tok.type == T_LC) {
@@ -2248,7 +2289,7 @@ AST* parse_expr(void) {
 
   if (tok.type == T_MATCH) {
     next_token();
-    AST* value = parse_comparison();
+    AST* value = parse_logical_or();
 
     if (tok.type == T_COLON) {
       next_token();
@@ -2265,7 +2306,7 @@ AST* parse_expr(void) {
     size_t case_count = 0;
 
     while (tok.type != T_RC && tok.type != T_EOF) {
-      patterns[case_count] = parse_comparison();
+      patterns[case_count] = parse_logical_or();
 
       if (tok.type != T_COLON) {
         error_at(tok.loc, "expected ':' after match pattern");
@@ -2295,7 +2336,7 @@ AST* parse_expr(void) {
     return match;
   }
 
-  return parse_comparison();
+  return parse_logical_or();
 }
 
 AST* parse_stmt(void) {
@@ -3718,6 +3759,14 @@ Value eval(AST* a, Env* env) {
 
       if (l.type == VAL_ERROR) return l;
       if (r.type == VAL_ERROR) return r;
+
+      if (a->bin.op == '|') {
+        return v_bool(value_is_truthy(l) || value_is_truthy(r));
+      }
+
+      if (a->bin.op == '&') {
+        return v_bool(value_is_truthy(l) && value_is_truthy(r));
+      }
 
       if (l.type == VAL_ANY && l.any_val) {
         l = *l.any_val;

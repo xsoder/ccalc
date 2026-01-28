@@ -14,11 +14,13 @@ run_loop()
 print("")
 
 print("Test 2: Multiple tasks")
-task_a = async(lambda x: x + 10, 5)
 task_b = async(lambda x: x * 3, 7)
+task_a = async(lambda x: x + 10, 5)
+task_c = async(lambda x: { x ** 3 }, 40)
 
 then(task_a, lambda r: print("  Task A: 5 + 10 = {r}"))
 then(task_b, lambda r: print("  Task B: 7 * 3 = {r}"))
+then(task_c, lambda r: print("  Task C: 20 ** 3 = {r}"))
 
 run_loop()
 print("")
