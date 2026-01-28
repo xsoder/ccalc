@@ -1,0 +1,66 @@
+# https://en.wikipedia.org/wiki/Rule_110
+
+rule110(l, c, r) = {
+    pattern = l * 4 + c * 2 + r
+    match pattern: {
+        7: 0,
+        6: 1,
+        5: 1,
+        4: 0,
+        3: 1,
+        2: 1,
+        1: 1,
+        0: 0
+    }
+}
+
+get_cell(grid, index, size) = {
+    if index < 0: 0
+    if index >= size: 0
+    else: grid[index]
+}
+
+evolve(grid, size) = {
+    new_grid = []
+    i = 0
+    while i < size :{
+        l = get_cell(grid, i - 1, size)
+        c = get_cell(grid, i, size)
+        r = get_cell(grid, i + 1, size)
+        new_state = rule110(l, c, r)
+        new_grid.append(new_state)
+        i += 1
+    }
+    new_grid 
+}
+
+print_grid(grid) = {
+    row = ""
+    for cell: (grid) {
+        if cell == 1: { row += "+" }
+        else:  { row += " " }
+    }
+    print(row)
+}
+
+init_gird(size) = {
+    grid = []
+    j = 0
+    while j < size :{
+        if j == size - 1: { grid.append(1) }
+        else: { grid.append(0) }
+        j += 1
+    }
+    grid
+}
+
+const WIDTH = 80
+const GEN = 30
+
+grid = init_gird(WIDTH)
+gen = 0
+while gen < GEN :{
+    print_grid(grid)
+    grid = evolve(grid, WIDTH)
+    gen += 1
+}

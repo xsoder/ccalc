@@ -1,4 +1,3 @@
-# += or any such variant is still not supported and will not be
 math = 20
 print('Interpolation %' , math)
 
