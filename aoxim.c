@@ -233,6 +233,7 @@ typedef enum {
   VAL_PTR,
   VAL_STRUCT_DEF,
   VAL_STRUCT,
+  VAL_CHAR,
   VAL_ANY
 } ValueType;
 
@@ -288,6 +289,7 @@ struct Value {
     StructDef* struct_def;
     StructVal* struct_val;
     Value* any_val;
+    char c;
   };
 };
 
@@ -339,11 +341,20 @@ Value v_error(const char* msg) {
   v.s = xstrdup(msg);
   return v;
 }
+
 Value v_ptr(void* p) {
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_PTR;
   v.ptr = p;
+  return v;
+}
+
+Value v_char(char c) {
+  Value v;
+  memset(&v, 0, sizeof(v));
+  v.type = VAL_CHAR;
+  v.c = c;
   return v;
 }
 
@@ -433,6 +444,8 @@ bool value_is_truthy(Value v) {
       return true;
     case VAL_STRUCT:
       return true;
+    case VAL_CHAR:
+      return v.c != '\0';
     case VAL_ANY:
       return false;
   }
@@ -450,6 +463,8 @@ bool values_equal(Value a, Value b) {
       return a.b == b.b;
     case VAL_STRING:
       return strcmp(a.s, b.s) == 0;
+    case VAL_CHAR:
+      return a.c == b.c;
     case VAL_NULL:
       return true;
     case VAL_PTR:
@@ -501,6 +516,8 @@ const char* value_type_name(Value v) {
       return "struct_def";
     case VAL_STRUCT:
       return "struct";
+    case VAL_CHAR:
+      return "char";
     case VAL_ANY:
       return "any";
   }
@@ -533,6 +550,8 @@ const char* value_type_color(Value v) {
     case VAL_STRUCT_DEF:
       return COLOR_CYAN;
     case VAL_STRUCT:
+      return COLOR_CYAN;
+    case VAL_CHAR:
       return COLOR_CYAN;
     case VAL_ANY:
       return COLOR_YELLOW;
@@ -641,6 +660,10 @@ typedef enum {
   T_MOD_ASSIGN,
   T_FLOORDIV_ASSIGN,
   T_FLOORDIV,
+  T_CHAR,
+  T_HEX,
+  T_NULLPTR,
+  T_PTR,
 } TokType;
 
 typedef struct {
@@ -768,6 +791,14 @@ const char* token_name(TokType t) {
       return "'//='";
     case T_FLOORDIV:
       return "'//'";
+    case T_CHAR:
+      return "character";
+    case T_HEX:
+      return "hexadecimal";
+    case T_NULLPTR:
+      return "'nullptr'";
+    case T_PTR:
+      return "'ptr'";
   }
   return "unknown";
 }
@@ -880,6 +911,32 @@ void next_token(void) {
     return;
   }
 
+  if (*src == '0' && (*(src + 1) == 'x' || *(src + 1) == 'X')) {
+    src += 2;  // Skip '0x'
+    current_loc.column += 2;
+
+    if (!isxdigit(*src)) {
+      error_at(tok.loc, "invalid hexadecimal number: expected digits after 0x");
+      tok.type = T_ERROR;
+      return;
+    }
+
+    long long value = 0;
+    char hex_str[64];
+    char* p = hex_str;
+
+    while (isxdigit(*src) && p < hex_str + sizeof(hex_str) - 1) {
+      *p++ = *src++;
+      current_loc.column++;
+    }
+    *p = '\0';
+
+    value = strtoll(hex_str, NULL, 16);
+    tok.type = T_HEX;
+    snprintf(tok.text, sizeof(tok.text), "%lld", value);
+    return;
+  }
+
   if (isdigit(*src) || (*src == '.' && isdigit(*(src + 1)))) {
     bool has_dot = false;
     char* start = (char*)src;
@@ -903,7 +960,7 @@ void next_token(void) {
     return;
   }
 
-  if (*src == '"' || *src == '\'') {
+  if (*src == '"') {
     char quote = *src++;
     current_loc.column++;
     char* p = tok.text;
@@ -948,6 +1005,63 @@ void next_token(void) {
     return;
   }
 
+  if (*src == '\'') {
+    src++;
+    current_loc.column++;
+
+    char ch;
+    if (*src == '\\') {
+      src++;
+      current_loc.column++;
+      switch (*src) {
+        case 'n':
+          ch = '\n';
+          break;
+        case 't':
+          ch = '\t';
+          break;
+        case 'r':
+          ch = '\r';
+          break;
+        case '0':
+          ch = '\0';
+          break;
+        case '\\':
+          ch = '\\';
+          break;
+        case '\'':
+          ch = '\'';
+          break;
+        default:
+          error_at(tok.loc, "invalid escape sequence '\\%c'", *src);
+          ch = *src;
+          break;
+      }
+      src++;
+      current_loc.column++;
+    } else if (*src == '\'') {
+      error_at(tok.loc, "empty character literal");
+      ch = '\0';
+      src++;
+      current_loc.column++;
+    } else {
+      ch = *src++;
+      current_loc.column++;
+    }
+
+    if (*src != '\'') {
+      error_at(tok.loc, "unterminated character literal");
+    } else {
+      src++;
+      current_loc.column++;
+    }
+
+    tok.type = T_CHAR;
+    tok.text[0] = ch;
+    tok.text[1] = '\0';
+    return;
+  }
+
   if (is_ident_start(*src)) {
     char* p = tok.text;
     while (is_ident(*src)) {
@@ -988,6 +1102,10 @@ void next_token(void) {
       tok.type = T_STRUCT;
     else if (!strcmp(tok.text, "match"))
       tok.type = T_MATCH;
+    else if (!strcmp(tok.text, "nullptr"))
+      tok.type = T_NULLPTR;
+    else if (!strcmp(tok.text, "ptr"))
+      tok.type = T_PTR;
     else
       tok.type = T_IDENT;
     return;
@@ -1148,6 +1266,8 @@ typedef enum {
   A_ASSIGN_UNPACK,
   A_INCREMENT,
   A_DECREMENT,
+  A_CHAR,
+  A_PTR_LITERAL,
   A_COMPOUND_ASSIGN
 } ASTType;
 
@@ -1259,9 +1379,13 @@ struct AST {
       char* name;
       char op;
     } compound_assign;
+    char c;
+    struct {
+      void* addr;
+    } ptr_lit;
     struct {
       char* name;
-      bool is_post;  // TODO: Prefix assignment --x not work
+      bool is_post;
     } increment;
     struct {
       char* name;
@@ -1772,9 +1896,41 @@ AST* parse_primary(void) {
     return neg;
   }
 
+  if (tok.type == T_STAR) {
+    next_token();
+    AST* operand = parse_primary();
+
+    AST* ptr_cast = ast_new(A_PTR_LITERAL);
+    ptr_cast->list.items = xmalloc(sizeof(AST*));
+    ptr_cast->list.items[0] = operand;
+    ptr_cast->list.count = 1;
+    return ptr_cast;
+  }
+
   if (tok.type == T_INT) {
     a = ast_new(A_INT);
     a->i = atoll(tok.text);
+    next_token();
+    return a;
+  }
+
+  if (tok.type == T_HEX) {
+    a = ast_new(A_INT);
+    a->i = atoll(tok.text);
+    next_token();
+    return a;
+  }
+
+  if (tok.type == T_CHAR) {
+    a = ast_new(A_CHAR);
+    a->c = tok.text[0];
+    next_token();
+    return a;
+  }
+
+  if (tok.type == T_NULLPTR) {
+    a = ast_new(A_PTR_LITERAL);
+    a->ptr_lit.addr = NULL;
     next_token();
     return a;
   }
@@ -2143,6 +2299,34 @@ AST* parse_expr(void) {
 }
 
 AST* parse_stmt(void) {
+  if (tok.type == T_PTR) {
+    next_token();
+    if (tok.type != T_IDENT) {
+      error_at(tok.loc, "expected identifier after 'ptr'");
+      return ast_new(A_INT);
+    }
+    char* name = xstrdup(tok.text);
+    next_token();
+
+    if (tok.type != T_ASSIGN) {
+      error_at(tok.loc, "expected '=' after pointer variable name");
+      return ast_new(A_INT);
+    }
+    next_token();
+
+    AST* value = parse_expr();
+
+    AST* ptr_cast = ast_new(A_PTR_LITERAL);
+    ptr_cast->list.items = xmalloc(sizeof(AST*));
+    ptr_cast->list.items[0] = value;
+    ptr_cast->list.count = 1;
+
+    AST* assign = ast_new(A_ASSIGN);
+    assign->assign.name = name;
+    assign->assign.value = ptr_cast;
+    return assign;
+  }
+
   if (tok.type == T_STRUCT) {
     next_token();
     if (tok.type != T_IDENT) {
@@ -2342,6 +2526,7 @@ AST* parse_stmt(void) {
 
   return expr;
 }
+
 void print_value(Value v);
 
 void print_value(Value v) {
@@ -2358,6 +2543,13 @@ void print_value(Value v) {
   switch (v.type) {
     case VAL_INT:
       printf("%s%lld%s", color, v.i, reset);
+      break;
+    case VAL_CHAR:
+      if (v.c >= 32 && v.c < 127) {
+        printf("%s'%c'%s", color, v.c, reset);
+      } else {
+        printf("%s'\\x%02x'%s", color, (unsigned char)v.c, reset);
+      }
       break;
     case VAL_DOUBLE:
       printf("%s%g%s", color, v.d, reset);
@@ -2636,6 +2828,8 @@ Value builtin_int(Value* args, size_t argc) {
       return v_int((long long)arg.d);
     case VAL_BOOL:
       return v_int(arg.b ? 1 : 0);
+    case VAL_CHAR:
+      return v_int((long long)arg.c);
     case VAL_PTR:
       return v_int((long long)arg.ptr);
     case VAL_STRING: {
@@ -2700,6 +2894,10 @@ Value builtin_str(Value* args, size_t argc) {
       return arg;
     case VAL_INT:
       snprintf(buf, sizeof(buf), "%lld", arg.i);
+      return v_str(buf);
+    case VAL_CHAR:
+      buf[0] = arg.c;
+      buf[1] = '\0';
       return v_str(buf);
     case VAL_DOUBLE:
       snprintf(buf, sizeof(buf), "%g", arg.d);
@@ -2795,6 +2993,34 @@ Value builtin_any(Value* args, size_t argc) {
     return v_error("any() takes exactly 1 argument");
   }
   return v_any(args[0]);
+}
+
+Value builtin_char(Value* args, size_t argc) {
+  if (argc != 1) {
+    return v_error("char() takes exactly 1 argument");
+  }
+
+  Value arg = args[0];
+  if (arg.type == VAL_ANY && arg.any_val) {
+    arg = *arg.any_val;
+  }
+
+  switch (arg.type) {
+    case VAL_CHAR:
+      return arg;
+    case VAL_INT:
+      if (arg.i < 0 || arg.i > 255) {
+        return v_error("char() requires value 0-255");
+      }
+      return v_char((char)arg.i);
+    case VAL_STRING:
+      if (strlen(arg.s) == 0) {
+        return v_error("cannot convert empty string to char");
+      }
+      return v_char(arg.s[0]);
+    default:
+      return v_error("cannot convert to char");
+  }
 }
 
 Value builtin_help(Value* args, size_t argc) {
@@ -3349,6 +3575,13 @@ char* value_to_str(Value v) {
     case VAL_PTR:
       snprintf(buf, sizeof(buf), "<ptr:%p>", v.ptr);
       return xstrdup(buf);
+    case VAL_CHAR:
+      if (v.c >= 32 && v.c < 127) {
+        snprintf(buf, sizeof(buf), "%c", v.c);
+      } else {
+        snprintf(buf, sizeof(buf), "\\x%02x", (unsigned char)v.c);
+      }
+      return xstrdup(buf);
     case VAL_ERROR:
       snprintf(buf, sizeof(buf), "Error: %s", v.s);
       return xstrdup(buf);
@@ -3369,6 +3602,26 @@ Value eval(AST* a, Env* env) {
       return v_bool(a->b);
     case A_VAR:
       return env_get(env, a->name);
+    case A_CHAR:
+      return v_char(a->c);
+
+    case A_PTR_LITERAL: {
+      if (a->list.count > 0) {
+        Value v = eval(a->list.items[0], env);
+
+        if (v.type == VAL_INT) {
+          return v_ptr((void*)v.i);
+        } else if (v.type == VAL_PTR) {
+          return v;
+        } else if (v.type == VAL_NULL) {
+          return v_ptr(NULL);
+        }
+
+        return v_error("pointer cast requires integer, pointer, or null");
+      }
+
+      return v_ptr(a->ptr_lit.addr);
+    }
     case A_STRING_INTERP: {
       size_t total_len = 0;
       for (size_t i = 0; i <= a->str_interp.count; i++) {
@@ -3476,6 +3729,7 @@ Value eval(AST* a, Env* env) {
       if (a->bin.op == 'E') {
         if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i == r.i);
         if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b == r.b);
+        if (l.type == VAL_CHAR && r.type == VAL_CHAR) return v_bool(l.c == r.c);
         if (l.type == VAL_PTR && r.type == VAL_PTR)
           return v_bool(l.ptr == r.ptr);
         if (l.type == VAL_STRING && r.type == VAL_STRING)
@@ -3485,6 +3739,7 @@ Value eval(AST* a, Env* env) {
       if (a->bin.op == 'N') {
         if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i != r.i);
         if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b != r.b);
+        if (l.type == VAL_CHAR && r.type == VAL_CHAR) return v_bool(l.c != r.c);
         if (l.type == VAL_PTR && r.type == VAL_PTR)
           return v_bool(l.ptr != r.ptr);
         if (l.type == VAL_STRING && r.type == VAL_STRING)
@@ -3493,24 +3748,30 @@ Value eval(AST* a, Env* env) {
       }
       if (a->bin.op == '<') {
         if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i < r.i);
+        if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b < r.b);
+        if (l.type == VAL_CHAR && r.type == VAL_CHAR) return v_bool(l.c < r.c);
         if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
           return v_bool(value_to_double(l) < value_to_double(r));
         return v_bool(false);
       }
       if (a->bin.op == '>') {
         if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i > r.i);
+        if (l.type == VAL_CHAR && r.type == VAL_CHAR) return v_bool(l.c > r.c);
         if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
           return v_bool(value_to_double(l) > value_to_double(r));
         return v_bool(false);
       }
       if (a->bin.op == 'L') {
         if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i <= r.i);
+        if (l.type == VAL_CHAR && r.type == VAL_CHAR) return v_bool(l.c <= r.c);
         if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
           return v_bool(value_to_double(l) <= value_to_double(r));
         return v_bool(false);
       }
       if (a->bin.op == 'G') {
         if (l.type == VAL_INT && r.type == VAL_INT) return v_bool(l.i >= r.i);
+        if (l.type == VAL_BOOL && r.type == VAL_BOOL) return v_bool(l.b >= r.b);
+        if (l.type == VAL_CHAR && r.type == VAL_CHAR) return v_bool(l.c >= r.c);
         if (l.type == VAL_DOUBLE || r.type == VAL_DOUBLE)
           return v_bool(value_to_double(l) >= value_to_double(r));
         return v_bool(false);
@@ -4721,6 +4982,7 @@ int main(int argc, char** argv) {
   env_set(global_env, "bool", v_func(make_builtin(builtin_bool)), true);
   env_set(global_env, "is_error", v_func(make_builtin(builtin_is_error)), true);
   env_set(global_env, "is_null", v_func(make_builtin(builtin_is_null)), true);
+  env_set(global_env, "char", v_func(make_builtin(builtin_char)), true);
   env_set(global_env, "ptr_to_int", v_func(make_builtin(builtin_ptr_to_int)),
           true);
   env_set(global_env, "int_to_ptr", v_func(make_builtin(builtin_int_to_ptr)),
