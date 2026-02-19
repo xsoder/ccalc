@@ -1,0 +1,40 @@
+struct Iterator {
+    arr,
+    index,
+    length,
+
+    init(self) = {
+        self.index = 0
+        self.length = len(self.arr)
+    }
+
+    has_next(self) = {
+        self.index < self.length
+    }
+
+    next(self) = {
+        val = self.arr[self.index]
+        self.index = self.index + 1
+        val
+    }
+
+    peek(self) = {
+        if self.index < self.length: self.arr[self.index]
+        else: None
+    }
+
+    reset(self) = {
+        self.index = 0
+    }
+}
+
+arr =  [10, 20, 30, 40, "Urmom", "20", 22]
+it = Iterator { arr: arr }
+it.init()
+
+name = ""
+while it.has_next(): {
+    val = it.next()
+    name = name + "{val} "
+}
+print(name)

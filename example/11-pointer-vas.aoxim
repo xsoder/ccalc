@@ -1,0 +1,14 @@
+import "async.aoxim"
+
+task_b = async (lambda y: {
+    return 2 * y
+}, 20)
+
+task_c = async (lambda y, z: {
+    return y + z
+}, 20, 10)
+
+then(task_c, lambda v: { print(v) })
+then(task_b, lambda v: { print(v) })
+
+run_loop()

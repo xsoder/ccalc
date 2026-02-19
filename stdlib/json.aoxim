@@ -1,5 +1,5 @@
 stringiy(st) = {
-    st = '"{st}"'
+    st = "\"" + st + "\""
 }
 
 import "file.aoxim"
@@ -8,7 +8,7 @@ struct JObject {
     content,
     content_amt,
     JsonObjBegin(self) = {
-        self.content = '{'
+        self.content = "{"
         self.content_amt = 0
     }
 
@@ -95,15 +95,15 @@ struct JObject {
         file.write(self.content)
         file.close()
     }
-}
 
-StructAsJson(obj, p) = {
-    for i, j: (p) {
-        if type(j) == "int": {obj.JsonAddInteger(i, j)}
-        if type(j) == "string": {obj.JsonAddString(i, j)}
-        if type(j) == "bool": {obj.JsonAddBoolean(i, j)}
-        if type(j) == None: {obj.JsonAddNull(i, j)}
-        if type(j) == "list": {obj.JsonAddArray(i, j)}
+    StructAsJson(self, p) = {
+        for i, j: (p) {
+          print(i, j)
+            if type(j) == "int": {self.JsonAddInteger(i, j)}
+            if type(j) == "string": {self.JsonAddString(i, j)}
+            if type(j) == "bool": {self.JsonAddBoolean(i, j)}
+            if type(j) == None: {self.JsonAddNull(i, j)}
+            if type(j) == "list": {self.JsonAddArray(i, j)}
+        }
     }
 }
-

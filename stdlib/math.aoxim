@@ -1,0 +1,39 @@
+const PI = 3.141592653589793
+
+tan(angle) = {
+    while angle > PI: {
+        angle -= 2 * PI
+    }
+    while angle < -PI: {
+        angle += 2 * PI
+    }
+
+    if angle > PI / 2: {
+        return -1 * tan(PI - angle)
+    }
+    if angle < -PI / 2: {
+        return -1 * tan(-PI - angle)
+    }
+
+    return sin(angle) / cos(angle)
+}
+
+sin(angle) = {
+    result = 0
+    term = angle
+    for i: range(20) {
+        result += term
+        term *= (angle * angle * -1) / ((2 * i + 2) * (2 * i + 3))
+    }
+    return result
+}
+
+cos(angle) = {
+    result = 1
+    term = 1
+    for i: range(20) {
+        term *= (angle * angle * -1) / ((2 * i + 1) * (2 * i + 2))
+        result += term
+    }
+    return result
+}

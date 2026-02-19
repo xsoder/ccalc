@@ -31,7 +31,7 @@ bool use_colors = false;
 bool errors_occurred = false;
 bool import_mode = false;
 
-const char* get_current_os(void) {
+const char *get_current_os(void) {
 #if defined(_WIN32) || defined(_WIN64)
   return "windows";
 #elif defined(__APPLE__) || defined(__MACH__)
@@ -47,8 +47,8 @@ const char* get_current_os(void) {
 #endif
 }
 
-bool match_os(const char* os_name) {
-  const char* current = get_current_os();
+bool match_os(const char *os_name) {
+  const char *current = get_current_os();
 
   if (!strcmp(os_name, "win") || !strcmp(os_name, "windows") ||
       !strcmp(os_name, "win32"))
@@ -66,7 +66,7 @@ bool match_os(const char* os_name) {
 }
 
 typedef struct {
-  char** files;
+  char **files;
   size_t count;
   size_t capacity;
 } ImportTracker;
@@ -76,10 +76,10 @@ ImportTracker import_tracker = {NULL, 0, 0};
 void init_import_tracker(void) {
   import_tracker.capacity = 16;
   import_tracker.count = 0;
-  import_tracker.files = malloc(sizeof(char*) * import_tracker.capacity);
+  import_tracker.files = malloc(sizeof(char *) * import_tracker.capacity);
 }
 
-bool is_file_imported(const char* filename) {
+bool is_file_imported(const char *filename) {
   for (size_t i = 0; i < import_tracker.count; i++) {
     if (strcmp(import_tracker.files[i], filename) == 0) {
       return true;
@@ -88,17 +88,17 @@ bool is_file_imported(const char* filename) {
   return false;
 }
 
-void mark_file_imported(const char* filename) {
+void mark_file_imported(const char *filename) {
   if (import_tracker.count >= import_tracker.capacity) {
     import_tracker.capacity *= 2;
     import_tracker.files =
-        realloc(import_tracker.files, sizeof(char*) * import_tracker.capacity);
+        realloc(import_tracker.files, sizeof(char *) * import_tracker.capacity);
   }
   import_tracker.files[import_tracker.count++] = strdup(filename);
 }
 
 typedef struct {
-  const char* filename;
+  const char *filename;
   int line;
   int column;
 } SourceLoc;
@@ -106,61 +106,61 @@ typedef struct {
 SourceLoc current_loc = {"<stdin>", 1, 1};
 
 typedef struct ArenaBlock {
-  struct ArenaBlock* next;
+  struct ArenaBlock *next;
   size_t capacity;
   size_t used;
   char data[];
 } ArenaBlock;
 
 typedef struct {
-  ArenaBlock* blocks;
+  ArenaBlock *blocks;
   size_t block_size;
 } Arena;
 
-Arena* arena_new(size_t block_size) {
-  Arena* a = malloc(sizeof(Arena));
+Arena *arena_new(size_t block_size) {
+  Arena *a = malloc(sizeof(Arena));
   a->blocks = NULL;
   a->block_size = block_size;
   return a;
 }
 
-void* arena_alloc(Arena* arena, size_t size) {
+void *arena_alloc(Arena *arena, size_t size) {
   if (!arena->blocks || arena->blocks->used + size > arena->blocks->capacity) {
     size_t bs = arena->block_size > size ? arena->block_size : size * 2;
-    ArenaBlock* b = malloc(sizeof(ArenaBlock) + bs);
+    ArenaBlock *b = malloc(sizeof(ArenaBlock) + bs);
     b->next = arena->blocks;
     b->capacity = bs;
     b->used = 0;
     arena->blocks = b;
   }
-  void* ptr = arena->blocks->data + arena->blocks->used;
+  void *ptr = arena->blocks->data + arena->blocks->used;
   arena->blocks->used += size;
   return ptr;
 }
 
-char* arena_strdup(Arena* arena, const char* s) {
+char *arena_strdup(Arena *arena, const char *s) {
   size_t n = strlen(s) + 1;
-  char* p = arena_alloc(arena, n);
+  char *p = arena_alloc(arena, n);
   memcpy(p, s, n);
   return p;
 }
 
-void arena_free(Arena* arena) {
-  ArenaBlock* b = arena->blocks;
+void arena_free(Arena *arena) {
+  ArenaBlock *b = arena->blocks;
   while (b) {
-    ArenaBlock* next = b->next;
+    ArenaBlock *next = b->next;
     free(b);
     b = next;
   }
   free(arena);
 }
 
-Arena* global_arena;
+Arena *global_arena;
 
 #define xmalloc(sz) arena_alloc(global_arena, sz)
 #define xstrdup(s) arena_strdup(global_arena, s)
 
-void error_at(SourceLoc loc, const char* fmt, ...) {
+void error_at(SourceLoc loc, const char *fmt, ...) {
   fprintf(stderr, "%s:%d:%d: error: ", loc.filename, loc.line, loc.column);
   va_list args;
   va_start(args, fmt);
@@ -170,7 +170,7 @@ void error_at(SourceLoc loc, const char* fmt, ...) {
   errors_occurred = true;
 }
 
-void warning_at(SourceLoc loc, const char* fmt, ...) {
+void warning_at(SourceLoc loc, const char *fmt, ...) {
   fprintf(stderr, "%s:%d:%d: warning: ", loc.filename, loc.line, loc.column);
   va_list args;
   va_start(args, fmt);
@@ -199,25 +199,25 @@ typedef enum {
 } FFIType;
 
 typedef struct {
-  char* name;
-  void* handle;
+  char *name;
+  void *handle;
 } LoadedLib;
 
 typedef struct {
-  char* name;
-  char* c_name;
-  void* func_ptr;
-  FFIType* param_types;
+  char *name;
+  char *c_name;
+  void *func_ptr;
+  FFIType *param_types;
   size_t param_count;
   bool is_variadic;
   FFIType return_type;
 } ExternFunc;
 
-LoadedLib* loaded_libs = NULL;
+LoadedLib *loaded_libs = NULL;
 size_t loaded_libs_count = 0;
 size_t loaded_libs_capacity = 0;
 
-ExternFunc* extern_funcs = NULL;
+ExternFunc *extern_funcs = NULL;
 size_t extern_funcs_count = 0;
 size_t extern_funcs_capacity = 0;
 
@@ -245,38 +245,38 @@ typedef enum {
 typedef enum { CF_NONE, CF_RETURN, CF_BREAK, CF_CONTINUE } ControlFlow;
 
 typedef struct Function {
-  char** params;
+  char **params;
   size_t arity;
-  AST* body;
+  AST *body;
   bool is_builtin;
   bool is_variadic;
-  Value (*builtin)(Value*, size_t);
-  Env* closure_env;
+  Value (*builtin)(Value *, size_t);
+  Env *closure_env;
 } Function;
 
 typedef struct {
-  Value* items;
+  Value *items;
   size_t size;
   size_t capacity;
 } List;
 
 typedef struct {
-  Value* items;
+  Value *items;
   size_t size;
 } Tuple;
 
 typedef struct {
-  char* name;
-  char** fields;
+  char *name;
+  char **fields;
   size_t field_count;
-  char** method_names;
-  Function** methods;
+  char **method_names;
+  Function **methods;
   size_t method_count;
 } StructDef;
 
 typedef struct {
-  StructDef* def;
-  Value* values;
+  StructDef *def;
+  Value *values;
 } StructVal;
 
 struct Value {
@@ -285,20 +285,20 @@ struct Value {
   union {
     long long i;
     double d;
-    char* s;
-    Function* fn;
-    List* list;
+    char *s;
+    Function *fn;
+    List *list;
     bool b;
-    Tuple* tuple;
-    void* ptr;
+    Tuple *tuple;
+    void *ptr;
     struct {
-      void* ptr;
+      void *ptr;
       FFIType ptr_type;
       size_t ptr_size;
     } ptr_info;
-    StructDef* struct_def;
-    StructVal* struct_val;
-    Value* any_val;
+    StructDef *struct_def;
+    StructVal *struct_val;
+    Value *any_val;
     char c;
   };
 };
@@ -317,7 +317,7 @@ Value v_double(double d) {
   v.d = d;
   return v;
 }
-Value v_str(const char* s) {
+Value v_str(const char *s) {
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_STRING;
@@ -337,14 +337,14 @@ Value v_bool(bool b) {
   v.b = b;
   return v;
 }
-Value v_func(Function* f) {
+Value v_func(Function *f) {
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_FUNC;
   v.fn = f;
   return v;
 }
-Value v_error(const char* msg) {
+Value v_error(const char *msg) {
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_ERROR;
@@ -352,7 +352,7 @@ Value v_error(const char* msg) {
   return v;
 }
 
-Value v_ptr_with_type(void* p, FFIType ptr_type) {
+Value v_ptr_with_type(void *p, FFIType ptr_type) {
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_PTR;
@@ -360,7 +360,7 @@ Value v_ptr_with_type(void* p, FFIType ptr_type) {
   return v;
 }
 
-Value v_ptr(void* p) { return v_ptr_with_type(p, FFI_VOID); }
+Value v_ptr(void *p) { return v_ptr_with_type(p, FFI_VOID); }
 
 Value v_char(char c) {
   Value v;
@@ -405,7 +405,7 @@ Value v_list(void) {
   return v;
 }
 
-Value v_tuple(Value* items, size_t size) {
+Value v_tuple(Value *items, size_t size) {
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_TUPLE;
@@ -416,10 +416,10 @@ Value v_tuple(Value* items, size_t size) {
   return v;
 }
 
-void list_append(List* l, Value v) {
+void list_append(List *l, Value v) {
   if (l->size >= l->capacity) {
     size_t new_capacity = l->capacity * 2;
-    Value* new_items = xmalloc(sizeof(Value) * new_capacity);
+    Value *new_items = xmalloc(sizeof(Value) * new_capacity);
     memcpy(new_items, l->items, sizeof(Value) * l->size);
     l->items = new_items;
     l->capacity = new_capacity;
@@ -502,7 +502,7 @@ double value_to_double(Value v) {
   return 0.0;
 }
 
-const char* value_type_name(Value v) {
+const char *value_type_name(Value v) {
   switch (v.type) {
     case VAL_INT:
       return "int";
@@ -536,7 +536,7 @@ const char* value_type_name(Value v) {
   return "unknown";
 }
 
-const char* value_type_color(Value v) {
+const char *value_type_color(Value v) {
   if (!use_colors) return "";
   switch (v.type) {
     case VAL_INT:
@@ -572,25 +572,25 @@ const char* value_type_color(Value v) {
 }
 
 struct Env {
-  char* name;
+  char *name;
   Value value;
   bool is_const;
-  Value* value_ptr;
-  Env* next;
+  Value *value_ptr;
+  Env *next;
 };
 
-Env* global_env = NULL;
+Env *global_env = NULL;
 
-Env* env_new(void) {
-  Env* e = xmalloc(sizeof(Env));
+Env *env_new(void) {
+  Env *e = xmalloc(sizeof(Env));
   e->name = NULL;
   e->is_const = false;
   e->next = NULL;
   return e;
 }
 
-void env_set(Env* env, const char* name, Value v, bool is_const) {
-  for (Env* e = env; e; e = e->next) {
+void env_set(Env *env, const char *name, Value v, bool is_const) {
+  for (Env *e = env; e; e = e->next) {
     if (e->name && !strcmp(e->name, name)) {
       if (e->is_const) {
         fprintf(stderr, "Error: Cannot reassign const '%s'\n", name);
@@ -604,7 +604,7 @@ void env_set(Env* env, const char* name, Value v, bool is_const) {
       return;
     }
   }
-  Env* n = xmalloc(sizeof(Env));
+  Env *n = xmalloc(sizeof(Env));
   n->name = xstrdup(name);
   n->value = v;
   n->is_const = is_const;
@@ -618,15 +618,15 @@ void env_set(Env* env, const char* name, Value v, bool is_const) {
   env->next = n;
 }
 
-Value env_get(Env* env, const char* name) {
-  for (Env* e = env; e; e = e->next) {
+Value env_get(Env *env, const char *name) {
+  for (Env *e = env; e; e = e->next) {
     if (e->name && !strcmp(e->name, name)) return e->value;
   }
   return v_null();
 }
 
-Value* env_get_address(Env* env, const char* name) {
-  for (Env* e = env; e; e = e->next) {
+Value *env_get_address(Env *env, const char *name) {
+  for (Env *e = env; e; e = e->next) {
     if (e->name && !strcmp(e->name, name)) {
       return e->value_ptr;
     }
@@ -635,26 +635,26 @@ Value* env_get_address(Env* env, const char* name) {
 }
 
 typedef struct {
-  void* address;
+  void *address;
   size_t size;
   FFIType type;
   Value value;
   bool allocated;
 } MemoryBlock;
 
-MemoryBlock* memory_blocks = NULL;
+MemoryBlock *memory_blocks = NULL;
 size_t memory_blocks_count = 0;
 size_t memory_blocks_capacity = 0;
 
-void* allocate_memory(size_t size, FFIType type) {
-  void* ptr = malloc(size);
+void *allocate_memory(size_t size, FFIType type) {
+  void *ptr = malloc(size);
   if (!ptr) return NULL;
 
   // Track the allocation
   if (memory_blocks_count >= memory_blocks_capacity) {
     size_t new_cap =
         memory_blocks_capacity == 0 ? 16 : memory_blocks_capacity * 2;
-    MemoryBlock* new_blocks =
+    MemoryBlock *new_blocks =
         realloc(memory_blocks, sizeof(MemoryBlock) * new_cap);
     if (!new_blocks) {
       free(ptr);
@@ -673,7 +673,7 @@ void* allocate_memory(size_t size, FFIType type) {
   return ptr;
 }
 
-MemoryBlock* find_memory_block(void* ptr) {
+MemoryBlock *find_memory_block(void *ptr) {
   for (size_t i = 0; i < memory_blocks_count; i++) {
     if (memory_blocks[i].address == ptr && memory_blocks[i].allocated) {
       return &memory_blocks[i];
@@ -682,51 +682,51 @@ MemoryBlock* find_memory_block(void* ptr) {
   return NULL;
 }
 
-void store_value_at_address(void* address, Value v, FFIType type) {
-  MemoryBlock* block = find_memory_block(address);
+void store_value_at_address(void *address, Value v, FFIType type) {
+  MemoryBlock *block = find_memory_block(address);
 
   switch (type) {
     case FFI_INT:
     case FFI_LONG:
     case FFI_BOOL:
       if (v.type == VAL_INT) {
-        *(long long*)address = v.i;
+        *(long long *)address = v.i;
       } else if (v.type == VAL_DOUBLE) {
-        *(long long*)address = (long long)v.d;
+        *(long long *)address = (long long)v.d;
       } else if (v.type == VAL_BOOL) {
-        *(long long*)address = v.b ? 1 : 0;
+        *(long long *)address = v.b ? 1 : 0;
       }
       break;
 
     case FFI_DOUBLE:
     case FFI_FLOAT:
       if (v.type == VAL_DOUBLE) {
-        *(double*)address = v.d;
+        *(double *)address = v.d;
       } else if (v.type == VAL_INT) {
-        *(double*)address = (double)v.i;
+        *(double *)address = (double)v.i;
       }
       break;
 
     case FFI_CHAR:
       if (v.type == VAL_CHAR) {
-        *(char*)address = v.c;
+        *(char *)address = v.c;
       } else if (v.type == VAL_INT) {
-        *(char*)address = (char)v.i;
+        *(char *)address = (char)v.i;
       }
       break;
 
     case FFI_STRING:
       if (v.type == VAL_STRING) {
-        char** str_ptr = (char**)address;
+        char **str_ptr = (char **)address;
         *str_ptr = xstrdup(v.s);
       }
       break;
 
     case FFI_PTR:
       if (v.type == VAL_PTR) {
-        *(void**)address = v.ptr;
+        *(void **)address = v.ptr;
       } else if (v.type == VAL_INT) {
-        *(void**)address = (void*)v.i;
+        *(void **)address = (void *)v.i;
       }
       break;
 
@@ -816,11 +816,11 @@ typedef struct {
   SourceLoc loc;
 } Token;
 
-const char* src;
-const char* src_start;
+const char *src;
+const char *src_start;
 Token tok;
 
-const char* token_name(TokType t) {
+const char *token_name(TokType t) {
   switch (t) {
     case T_INT:
       return "integer";
@@ -1074,7 +1074,7 @@ void next_token(void) {
 
     long long value = 0;
     char hex_str[64];
-    char* p = hex_str;
+    char *p = hex_str;
 
     while (isxdigit(*src) && p < hex_str + sizeof(hex_str) - 1) {
       *p++ = *src++;
@@ -1090,7 +1090,7 @@ void next_token(void) {
 
   if (isdigit(*src) || (*src == '.' && isdigit(*(src + 1)))) {
     bool has_dot = false;
-    char* start = (char*)src;
+    char *start = (char *)src;
     if (*src == '.') has_dot = true;
 
     while (isdigit(*src) || (*src == '.' && !has_dot && *(src + 1) != '.')) {
@@ -1114,7 +1114,7 @@ void next_token(void) {
   if (*src == '"') {
     char quote = *src++;
     current_loc.column++;
-    char* p = tok.text;
+    char *p = tok.text;
     while (*src && *src != quote) {
       if (*src == '\\' && *(src + 1)) {
         src++;
@@ -1222,7 +1222,7 @@ void next_token(void) {
   }
 
   if (is_ident_start(*src)) {
-    char* p = tok.text;
+    char *p = tok.text;
     while (is_ident(*src)) {
       *p++ = *src++;
       current_loc.column++;
@@ -1446,138 +1446,138 @@ struct AST {
   union {
     long long i;
     double d;
-    char* s;
-    char* name;
+    char *s;
+    char *name;
     bool b;
     struct {
       char op;
       AST *l, *r;
     } bin;
     struct {
-      AST* fn;
-      AST** args;
+      AST *fn;
+      AST **args;
       size_t argc;
     } call;
     struct {
-      char** params;
+      char **params;
       size_t arity;
-      AST* body;
+      AST *body;
     } lambda;
     struct {
-      char* name;
-      AST* value;
+      char *name;
+      AST *value;
     } assign;
     struct {
-      AST* cond;
-      AST* then_block;
-      AST* else_block;
+      AST *cond;
+      AST *then_block;
+      AST *else_block;
     } ifelse;
     struct {
-      AST* cond;
-      AST* body;
+      AST *cond;
+      AST *body;
     } whileloop;
     struct {
-      char* var;
-      AST* iter;
-      AST* body;
+      char *var;
+      AST *iter;
+      AST *body;
     } forloop;
     struct {
-      AST* start;
-      AST* end;
+      AST *start;
+      AST *end;
     } range;
     struct {
-      AST** items;
+      AST **items;
       size_t count;
     } list;
     struct {
-      AST* obj;
-      AST* idx;
+      AST *obj;
+      AST *idx;
     } index;
     struct {
-      AST* obj;
-      char* method;
-      AST** args;
+      AST *obj;
+      char *method;
+      AST **args;
       size_t argc;
     } method;
     struct {
-      AST** stmts;
+      AST **stmts;
       size_t count;
     } block;
     struct {
-      AST* value;
+      AST *value;
     } ret;
     struct {
-      char** parts;
-      AST** exprs;
+      char **parts;
+      AST **exprs;
       size_t count;
     } str_interp;
     struct {
-      char* name;
-      char** fields;
+      char *name;
+      char **fields;
       size_t count;
-      AST** methods;
+      AST **methods;
       size_t method_count;
     } struct_def;
     struct {
-      char* name;
-      char** fields;
-      AST** values;
+      char *name;
+      char **fields;
+      AST **values;
       size_t count;
     } struct_init;
     struct {
-      AST* value;
-      AST** patterns;
-      AST** bodies;
+      AST *value;
+      AST **patterns;
+      AST **bodies;
       size_t case_count;
     } match;
     struct {
-      AST* obj;
-      char* member;
+      AST *obj;
+      char *member;
     } member;
     struct {
-      AST* obj;
-      char* member;
-      AST* value;
+      AST *obj;
+      char *member;
+      AST *value;
     } member_assign;
     struct {
-      char** names;
+      char **names;
       size_t count;
-      AST* value;
+      AST *value;
     } assign_unpack;
     struct {
-      char* name;
+      char *name;
       char op;
     } compound_assign;
     char c;
     struct {
-      void* addr;
+      void *addr;
     } ptr_lit;
     struct {
-      AST* ptr_expr;
+      AST *ptr_expr;
     } deref;
     struct {
-      char* var_name;
+      char *var_name;
     } addrof;
     struct {
-      char* name;
+      char *name;
       bool is_post;
     } increment;
     struct {
-      char* name;
+      char *name;
       bool is_post;
     } decrement;
   };
 };
 
-AST* parse_primary(void);
-AST* parse_expr(void);
-AST* parse_stmt(void);
-AST* parse_comparison(void);
-AST* parse_logical_or(void);
-AST* parse_logical_and(void);
+AST *parse_primary(void);
+AST *parse_expr(void);
+AST *parse_stmt(void);
+AST *parse_comparison(void);
+AST *parse_logical_or(void);
+AST *parse_logical_and(void);
 
-AST* ast_new(ASTType t) {
-  AST* a = xmalloc(sizeof(AST));
+AST *ast_new(ASTType t) {
+  AST *a = xmalloc(sizeof(AST));
   memset(a, 0, sizeof(AST));
   a->type = t;
   a->loc = tok.loc;
@@ -1593,14 +1593,14 @@ bool expect(TokType expected) {
   return true;
 }
 
-AST* parse_postfix(void) {
-  AST* obj = parse_primary();
+AST *parse_postfix(void) {
+  AST *obj = parse_primary();
   while (1) {
     if (tok.type == T_LP) {
       next_token();
-      AST* call = ast_new(A_CALL);
+      AST *call = ast_new(A_CALL);
       call->call.fn = obj;
-      call->call.args = xmalloc(sizeof(AST*) * 64);
+      call->call.args = xmalloc(sizeof(AST *) * 64);
       call->call.argc = 0;
       if (tok.type != T_RP) {
         call->call.args[call->call.argc++] = parse_expr();
@@ -1614,10 +1614,10 @@ AST* parse_postfix(void) {
       obj = call;
     } else if (tok.type == T_LB) {
       next_token();
-      AST* idx = parse_expr();
+      AST *idx = parse_expr();
       expect(T_RB);
       next_token();
-      AST* c = ast_new(A_INDEX);
+      AST *c = ast_new(A_INDEX);
       c->index.obj = obj;
       c->index.idx = idx;
       obj = c;
@@ -1627,11 +1627,11 @@ AST* parse_postfix(void) {
         next_token();
         break;
       }
-      char* method = xstrdup(tok.text);
+      char *method = xstrdup(tok.text);
       next_token();
       if (tok.type == T_LP) {
         next_token();
-        AST** args = xmalloc(sizeof(AST*) * 16);
+        AST **args = xmalloc(sizeof(AST *) * 16);
         size_t n = 0;
         if (tok.type != T_RP) {
           while (1) {
@@ -1646,14 +1646,14 @@ AST* parse_postfix(void) {
         } else {
           next_token();
         }
-        AST* c = ast_new(A_METHOD);
+        AST *c = ast_new(A_METHOD);
         c->method.obj = obj;
         c->method.method = method;
         c->method.args = args;
         c->method.argc = n;
         obj = c;
       } else {
-        AST* c = ast_new(A_MEMBER);
+        AST *c = ast_new(A_MEMBER);
         c->member.obj = obj;
         c->member.member = method;
         obj = c;
@@ -1661,7 +1661,7 @@ AST* parse_postfix(void) {
     } else if (tok.type == T_INCREMENT) {
       next_token();
       if (obj->type == A_VAR) {
-        AST* incr = ast_new(A_INCREMENT);
+        AST *incr = ast_new(A_INCREMENT);
         incr->increment.name = obj->name;
         incr->increment.is_post = true;
         obj = incr;
@@ -1671,7 +1671,7 @@ AST* parse_postfix(void) {
     } else if (tok.type == T_DECR) {
       next_token();
       if (obj->type == A_VAR) {
-        AST* decr = ast_new(A_DECREMENT);
+        AST *decr = ast_new(A_DECREMENT);
         decr->decrement.name = obj->name;
         decr->decrement.is_post = true;
         obj = decr;
@@ -1685,15 +1685,15 @@ AST* parse_postfix(void) {
   return obj;
 }
 
-AST* parse_match(void) {
+AST *parse_match(void) {
   next_token();
-  AST* obj = parse_expr();
+  AST *obj = parse_expr();
 
   if (!expect(T_LC)) return obj;
   next_token();
 
-  AST** patterns = xmalloc(sizeof(AST*) * 32);
-  AST** bodies = xmalloc(sizeof(AST*) * 32);
+  AST **patterns = xmalloc(sizeof(AST *) * 32);
+  AST **bodies = xmalloc(sizeof(AST *) * 32);
   size_t count = 0;
 
   while (tok.type != T_RC && tok.type != T_EOF) {
@@ -1708,7 +1708,7 @@ AST* parse_match(void) {
   expect(T_RC);
   next_token();
 
-  AST* m = ast_new(A_MATCH);
+  AST *m = ast_new(A_MATCH);
   m->match.value = obj;
   m->match.patterns = patterns;
   m->match.bodies = bodies;
@@ -1716,18 +1716,18 @@ AST* parse_match(void) {
   return m;
 }
 
-AST* parse_block(void) {
+AST *parse_block(void) {
   if (tok.type != T_LC) {
     error_at(tok.loc, "expected '{' but got %s", token_name(tok.type));
     return ast_new(A_BLOCK);
   }
   next_token();
 
-  AST** stmts = xmalloc(sizeof(AST*) * 64);
+  AST **stmts = xmalloc(sizeof(AST *) * 64);
   size_t n = 0;
 
   while (tok.type != T_RC && tok.type != T_EOF) {
-    AST* stmt = parse_stmt();
+    AST *stmt = parse_stmt();
 
     if (stmt && (stmt->type == A_VAR || stmt->type == A_TUPLE) &&
         tok.type == T_ASSIGN) {
@@ -1740,30 +1740,31 @@ AST* parse_block(void) {
       }
 
       next_token();
-      AST* value = parse_expr();
+      AST *value = parse_expr();
       if (tok.type == T_COMMA) {
-        AST** items = xmalloc(sizeof(AST*) * 64);
+        AST **items = xmalloc(sizeof(AST *) * 64);
         size_t count = 0;
         items[count++] = value;
         while (tok.type == T_COMMA) {
           next_token();
           items[count++] = parse_expr();
         }
-        AST* tuple = ast_new(A_TUPLE);
+        AST *tuple = ast_new(A_TUPLE);
         tuple->list.items = items;
         tuple->list.count = count;
         value = tuple;
       }
 
       if (stmt->type == A_VAR) {
-        AST* assign = ast_new(A_ASSIGN);
+        AST *assign = ast_new(A_ASSIGN);
         assign->assign.name = stmt->name;
         assign->assign.value = value;
         stmt = assign;
       } else {
-        AST* unpack = ast_new(A_ASSIGN_UNPACK);
+        AST *unpack = ast_new(A_ASSIGN_UNPACK);
         unpack->assign_unpack.count = stmt->list.count;
-        unpack->assign_unpack.names = xmalloc(sizeof(char*) * stmt->list.count);
+        unpack->assign_unpack.names =
+            xmalloc(sizeof(char *) * stmt->list.count);
         for (size_t i = 0; i < stmt->list.count; i++) {
           unpack->assign_unpack.names[i] = stmt->list.items[i]->name;
         }
@@ -1788,18 +1789,18 @@ AST* parse_block(void) {
     next_token();
   }
 
-  AST* b = ast_new(A_BLOCK);
+  AST *b = ast_new(A_BLOCK);
   b->block.stmts = stmts;
   b->block.count = n;
   return b;
 }
 
-AST* parse_logical_or(void) {
-  AST* a = parse_logical_and();
+AST *parse_logical_or(void) {
+  AST *a = parse_logical_and();
   while (tok.type == T_OR) {
     next_token();
-    AST* b = parse_logical_and();
-    AST* n = ast_new(A_BINOP);
+    AST *b = parse_logical_and();
+    AST *n = ast_new(A_BINOP);
     n->bin.op = '|';
     n->bin.l = a;
     n->bin.r = b;
@@ -1808,12 +1809,12 @@ AST* parse_logical_or(void) {
   return a;
 }
 
-AST* parse_logical_and(void) {
-  AST* a = parse_comparison();
+AST *parse_logical_and(void) {
+  AST *a = parse_comparison();
   while (tok.type == T_AND) {
     next_token();
-    AST* b = parse_comparison();
-    AST* n = ast_new(A_BINOP);
+    AST *b = parse_comparison();
+    AST *n = ast_new(A_BINOP);
     n->bin.op = '&';
     n->bin.l = a;
     n->bin.r = b;
@@ -1822,8 +1823,8 @@ AST* parse_logical_and(void) {
   return a;
 }
 
-AST* parse_string_interpolation(const char* str) {
-  const char* p = str;
+AST *parse_string_interpolation(const char *str) {
+  const char *p = str;
   bool has_interp = false;
 
   while (*p) {
@@ -1835,14 +1836,14 @@ AST* parse_string_interpolation(const char* str) {
   }
 
   if (!has_interp) {
-    AST* a = ast_new(A_STRING);
+    AST *a = ast_new(A_STRING);
     a->s = xstrdup(str);
     return a;
   }
 
-  AST* interp = ast_new(A_STRING_INTERP);
-  char** parts = xmalloc(sizeof(char*) * 32);
-  AST** exprs = xmalloc(sizeof(AST*) * 32);
+  AST *interp = ast_new(A_STRING_INTERP);
+  char **parts = xmalloc(sizeof(char *) * 32);
+  AST **exprs = xmalloc(sizeof(AST *) * 32);
   size_t count = 0;
 
   char buffer[512];
@@ -1877,8 +1878,8 @@ AST* parse_string_interpolation(const char* str) {
 
       p++;
 
-      const char* start = p;
-      const char* end = p;
+      const char *start = p;
+      const char *end = p;
       int brace_depth = 1;
 
       while (*end && brace_depth > 0) {
@@ -1908,19 +1909,19 @@ AST* parse_string_interpolation(const char* str) {
         continue;
       }
 
-      char* expr_str = xmalloc(expr_len + 1);
+      char *expr_str = xmalloc(expr_len + 1);
       strncpy(expr_str, start, expr_len);
       expr_str[expr_len] = '\0';
 
-      const char* saved_src = src;
-      const char* saved_src_start = src_start;
+      const char *saved_src = src;
+      const char *saved_src_start = src_start;
       Token saved_tok = tok;
       SourceLoc saved_loc = current_loc;
 
       src = expr_str;
       src_start = expr_str;
       next_token();
-      AST* expr = parse_expr();
+      AST *expr = parse_expr();
 
       src = saved_src;
       src_start = saved_src_start;
@@ -1949,8 +1950,8 @@ AST* parse_string_interpolation(const char* str) {
   return interp;
 }
 
-AST* parse_primary(void) {
-  AST* a;
+AST *parse_primary(void) {
+  AST *a;
 
   if (tok.type == T_LC) return parse_block();
 
@@ -1960,9 +1961,9 @@ AST* parse_primary(void) {
   if (tok.type == T_INCREMENT) {
     SourceLoc inc_loc = tok.loc;
     next_token();
-    AST* operand = parse_primary();
+    AST *operand = parse_primary();
     if (operand->type == A_VAR) {
-      AST* incr = ast_new(A_INCREMENT);
+      AST *incr = ast_new(A_INCREMENT);
       incr->loc = inc_loc;
       incr->increment.name = operand->name;
       incr->increment.is_post = false;
@@ -1976,9 +1977,9 @@ AST* parse_primary(void) {
   if (tok.type == T_DECR) {
     SourceLoc dec_loc = tok.loc;
     next_token();
-    AST* operand = parse_primary();
+    AST *operand = parse_primary();
     if (operand->type == A_VAR) {
-      AST* decr = ast_new(A_DECREMENT);
+      AST *decr = ast_new(A_DECREMENT);
       decr->loc = dec_loc;
       decr->decrement.name = operand->name;
       decr->decrement.is_post = false;
@@ -1992,9 +1993,9 @@ AST* parse_primary(void) {
   if (tok.type == T_DEFER) {
     SourceLoc defer_loc = tok.loc;
     next_token();
-    AST* expr = parse_primary();
+    AST *expr = parse_primary();
 
-    AST* deref = ast_new(A_DEFER);
+    AST *deref = ast_new(A_DEFER);
     deref->loc = defer_loc;
     deref->deref.ptr_expr = expr;
     return deref;
@@ -2009,10 +2010,10 @@ AST* parse_primary(void) {
       return ast_new(A_INT);
     }
 
-    char* var_name = xstrdup(tok.text);
+    char *var_name = xstrdup(tok.text);
     next_token();
 
-    AST* addrof = ast_new(A_ADDROF);
+    AST *addrof = ast_new(A_ADDROF);
     addrof->loc = amp_loc;
     addrof->addrof.var_name = var_name;
     return addrof;
@@ -2021,7 +2022,7 @@ AST* parse_primary(void) {
   if (tok.type == T_LAMBDA) {
     SourceLoc lambda_loc = tok.loc;
     next_token();
-    char** params = xmalloc(sizeof(char*) * 16);
+    char **params = xmalloc(sizeof(char *) * 16);
     size_t n = 0;
 
     if (tok.type == T_IDENT) {
@@ -2046,9 +2047,9 @@ AST* parse_primary(void) {
       next_token();
     }
 
-    AST* body = parse_expr();
+    AST *body = parse_expr();
 
-    AST* lambda = ast_new(A_LAMBDA);
+    AST *lambda = ast_new(A_LAMBDA);
     lambda->loc = lambda_loc;
     lambda->lambda.params = params;
     lambda->lambda.arity = n;
@@ -2058,7 +2059,7 @@ AST* parse_primary(void) {
 
   if (tok.type == T_LB) {
     next_token();
-    AST** items = xmalloc(sizeof(AST*) * 64);
+    AST **items = xmalloc(sizeof(AST *) * 64);
     size_t n = 0;
 
     if (tok.type != T_RB) {
@@ -2078,7 +2079,7 @@ AST* parse_primary(void) {
       next_token();
     }
 
-    AST* list = ast_new(A_LIST);
+    AST *list = ast_new(A_LIST);
     list->list.items = items;
     list->list.count = n;
     return list;
@@ -2086,18 +2087,18 @@ AST* parse_primary(void) {
 
   if (tok.type == T_RETURN) {
     next_token();
-    AST* ret = ast_new(A_RETURN);
+    AST *ret = ast_new(A_RETURN);
     if (tok.type != T_RC && tok.type != T_SEMI && tok.type != T_EOF) {
-      AST* val = parse_expr();
+      AST *val = parse_expr();
       if (tok.type == T_COMMA) {
-        AST** items = xmalloc(sizeof(AST*) * 64);
+        AST **items = xmalloc(sizeof(AST *) * 64);
         size_t count = 0;
         items[count++] = val;
         while (tok.type == T_COMMA) {
           next_token();
           items[count++] = parse_expr();
         }
-        AST* tuple = ast_new(A_TUPLE);
+        AST *tuple = ast_new(A_TUPLE);
         tuple->list.items = items;
         tuple->list.count = count;
         val = tuple;
@@ -2121,10 +2122,10 @@ AST* parse_primary(void) {
 
   if (tok.type == T_MINUS) {
     next_token();
-    AST* operand = parse_primary();
-    AST* zero = ast_new(A_INT);
+    AST *operand = parse_primary();
+    AST *zero = ast_new(A_INT);
     zero->i = 0;
-    AST* neg = ast_new(A_BINOP);
+    AST *neg = ast_new(A_BINOP);
     neg->bin.op = '-';
     neg->bin.l = zero;
     neg->bin.r = operand;
@@ -2133,10 +2134,10 @@ AST* parse_primary(void) {
 
   if (tok.type == T_STAR) {
     next_token();
-    AST* operand = parse_primary();
+    AST *operand = parse_primary();
 
-    AST* ptr_cast = ast_new(A_PTR_LITERAL);
-    ptr_cast->list.items = xmalloc(sizeof(AST*));
+    AST *ptr_cast = ast_new(A_PTR_LITERAL);
+    ptr_cast->list.items = xmalloc(sizeof(AST *));
     ptr_cast->list.items[0] = operand;
     ptr_cast->list.count = 1;
     return ptr_cast;
@@ -2191,13 +2192,13 @@ AST* parse_primary(void) {
   }
 
   if (tok.type == T_IDENT) {
-    char* name = xstrdup(tok.text);
+    char *name = xstrdup(tok.text);
     next_token();
 
     if (tok.type == T_LC) {
       next_token();
-      AST** values = xmalloc(sizeof(AST*) * 32);
-      char** fields = xmalloc(sizeof(char*) * 32);
+      AST **values = xmalloc(sizeof(AST *) * 32);
+      char **fields = xmalloc(sizeof(char *) * 32);
       size_t count = 0;
       while (tok.type != T_RC && tok.type != T_EOF) {
         if (tok.type != T_IDENT) {
@@ -2215,7 +2216,7 @@ AST* parse_primary(void) {
       expect(T_RC);
       next_token();
 
-      AST* init = ast_new(A_STRUCT_INIT);
+      AST *init = ast_new(A_STRUCT_INIT);
       init->struct_init.name = name;
       init->struct_init.fields = fields;
       init->struct_init.values = values;
@@ -2231,7 +2232,7 @@ AST* parse_primary(void) {
   if (tok.type == T_LP) {
     next_token();
 
-    AST** items = xmalloc(sizeof(AST*) * 64);
+    AST **items = xmalloc(sizeof(AST *) * 64);
     size_t n = 0;
 
     if (tok.type != T_RP) {
@@ -2249,7 +2250,7 @@ AST* parse_primary(void) {
           next_token();
         }
 
-        AST* tuple = ast_new(A_TUPLE);
+        AST *tuple = ast_new(A_TUPLE);
         tuple->list.items = items;
         tuple->list.count = n;
         return tuple;
@@ -2270,12 +2271,12 @@ AST* parse_primary(void) {
   return ast_new(A_INT);
 }
 
-AST* parse_power(void) {
-  AST* a = parse_postfix();
+AST *parse_power(void) {
+  AST *a = parse_postfix();
   if (tok.type == T_POW) {
     next_token();
-    AST* b = parse_power();
-    AST* n = ast_new(A_BINOP);
+    AST *b = parse_power();
+    AST *n = ast_new(A_BINOP);
     n->bin.op = '^';
     n->bin.l = a;
     n->bin.r = b;
@@ -2285,8 +2286,8 @@ AST* parse_power(void) {
   return a;
 }
 
-AST* parse_term(void) {
-  AST* a = parse_power();
+AST *parse_term(void) {
+  AST *a = parse_power();
   while (tok.type == T_STAR || tok.type == T_SLASH || tok.type == T_MOD) {
     char op;
     if (tok.type == T_STAR)
@@ -2296,8 +2297,8 @@ AST* parse_term(void) {
     else
       op = '%';
     next_token();
-    AST* b = parse_power();
-    AST* n = ast_new(A_BINOP);
+    AST *b = parse_power();
+    AST *n = ast_new(A_BINOP);
     n->bin.op = op;
     n->bin.l = a;
     n->bin.r = b;
@@ -2306,13 +2307,13 @@ AST* parse_term(void) {
   return a;
 }
 
-AST* parse_arith(void) {
-  AST* a = parse_term();
+AST *parse_arith(void) {
+  AST *a = parse_term();
   while (tok.type == T_PLUS || tok.type == T_MINUS) {
     char op = (tok.type == T_PLUS ? '+' : '-');
     next_token();
-    AST* b = parse_term();
-    AST* n = ast_new(A_BINOP);
+    AST *b = parse_term();
+    AST *n = ast_new(A_BINOP);
     n->bin.op = op;
     n->bin.l = a;
     n->bin.r = b;
@@ -2321,12 +2322,12 @@ AST* parse_arith(void) {
   return a;
 }
 
-AST* parse_range(void) {
-  AST* start = parse_arith();
+AST *parse_range(void) {
+  AST *start = parse_arith();
   if (tok.type == T_DOTDOT) {
     next_token();
-    AST* end = parse_arith();
-    AST* range = ast_new(A_RANGE);
+    AST *end = parse_arith();
+    AST *range = ast_new(A_RANGE);
     range->range.start = start;
     range->range.end = end;
     return range;
@@ -2334,8 +2335,8 @@ AST* parse_range(void) {
   return start;
 }
 
-AST* parse_comparison(void) {
-  AST* a = parse_range();
+AST *parse_comparison(void) {
+  AST *a = parse_range();
   while (tok.type == T_EQ || tok.type == T_NE || tok.type == T_LT ||
          tok.type == T_GT || tok.type == T_LE || tok.type == T_GE) {
     char op;
@@ -2363,8 +2364,8 @@ AST* parse_comparison(void) {
         break;
     }
     next_token();
-    AST* b = parse_range();
-    AST* n = ast_new(A_BINOP);
+    AST *b = parse_range();
+    AST *n = ast_new(A_BINOP);
     n->bin.op = op;
     n->bin.l = a;
     n->bin.r = b;
@@ -2373,13 +2374,13 @@ AST* parse_comparison(void) {
   return a;
 }
 
-AST* parse_expr(void) {
+AST *parse_expr(void) {
   if (tok.type == T_IF) {
     next_token();
-    AST* cond = parse_logical_or();
+    AST *cond = parse_logical_or();
 
-    AST* then_block;
-    AST* else_block = NULL;
+    AST *then_block;
+    AST *else_block = NULL;
 
     if (tok.type == T_LC)
       then_block = parse_block();
@@ -2404,7 +2405,7 @@ AST* parse_expr(void) {
       }
     }
 
-    AST* a = ast_new(A_IF);
+    AST *a = ast_new(A_IF);
     a->ifelse.cond = cond;
     a->ifelse.then_block = then_block;
     a->ifelse.else_block = else_block;
@@ -2413,8 +2414,8 @@ AST* parse_expr(void) {
 
   if (tok.type == T_WHILE) {
     next_token();
-    AST* cond = parse_logical_or();
-    AST* body;
+    AST *cond = parse_logical_or();
+    AST *body;
 
     if (tok.type == T_LC)
       body = parse_block();
@@ -2426,7 +2427,7 @@ AST* parse_expr(void) {
       body = parse_expr();
     }
 
-    AST* a = ast_new(A_WHILE);
+    AST *a = ast_new(A_WHILE);
     a->whileloop.cond = cond;
     a->whileloop.body = body;
     return a;
@@ -2455,7 +2456,7 @@ AST* parse_expr(void) {
       next_token();
     }
 
-    char* var = xstrdup(var_buffer);
+    char *var = xstrdup(var_buffer);
 
     if (tok.type != T_COLON) {
       error_at(tok.loc, "expected ':' after for variable");
@@ -2463,9 +2464,9 @@ AST* parse_expr(void) {
     }
     next_token();
 
-    AST* iter = parse_logical_or();
+    AST *iter = parse_logical_or();
 
-    AST* body;
+    AST *body;
     if (tok.type == T_LC) {
       body = parse_block();
     } else {
@@ -2474,7 +2475,7 @@ AST* parse_expr(void) {
       return ast_new(A_INT);
     }
 
-    AST* a = ast_new(A_FOR);
+    AST *a = ast_new(A_FOR);
     a->forloop.var = var;
     a->forloop.iter = iter;
     a->forloop.body = body;
@@ -2483,7 +2484,7 @@ AST* parse_expr(void) {
 
   if (tok.type == T_MATCH) {
     next_token();
-    AST* value = parse_logical_or();
+    AST *value = parse_logical_or();
 
     if (tok.type == T_COLON) {
       next_token();
@@ -2495,8 +2496,8 @@ AST* parse_expr(void) {
     }
     next_token();
 
-    AST** patterns = xmalloc(sizeof(AST*) * 64);
-    AST** bodies = xmalloc(sizeof(AST*) * 64);
+    AST **patterns = xmalloc(sizeof(AST *) * 64);
+    AST **bodies = xmalloc(sizeof(AST *) * 64);
     size_t case_count = 0;
 
     while (tok.type != T_RC && tok.type != T_EOF) {
@@ -2522,7 +2523,7 @@ AST* parse_expr(void) {
       next_token();
     }
 
-    AST* match = ast_new(A_MATCH);
+    AST *match = ast_new(A_MATCH);
     match->match.value = value;
     match->match.patterns = patterns;
     match->match.bodies = bodies;
@@ -2533,14 +2534,14 @@ AST* parse_expr(void) {
   return parse_logical_or();
 }
 
-AST* parse_stmt(void) {
+AST *parse_stmt(void) {
   if (tok.type == T_PTR) {
     next_token();
     if (tok.type != T_IDENT) {
       error_at(tok.loc, "expected identifier after 'ptr'");
       return ast_new(A_INT);
     }
-    char* name = xstrdup(tok.text);
+    char *name = xstrdup(tok.text);
     next_token();
 
     if (tok.type != T_ASSIGN) {
@@ -2549,14 +2550,14 @@ AST* parse_stmt(void) {
     }
     next_token();
 
-    AST* value = parse_expr();
+    AST *value = parse_expr();
 
-    AST* ptr_cast = ast_new(A_PTR_LITERAL);
-    ptr_cast->list.items = xmalloc(sizeof(AST*));
+    AST *ptr_cast = ast_new(A_PTR_LITERAL);
+    ptr_cast->list.items = xmalloc(sizeof(AST *));
     ptr_cast->list.items[0] = value;
     ptr_cast->list.count = 1;
 
-    AST* assign = ast_new(A_ASSIGN);
+    AST *assign = ast_new(A_ASSIGN);
     assign->assign.name = name;
     assign->assign.value = ptr_cast;
     return assign;
@@ -2568,17 +2569,17 @@ AST* parse_stmt(void) {
       error_at(tok.loc, "expected struct name");
       return ast_new(A_STRUCT_DEF);
     }
-    char* name = xstrdup(tok.text);
+    char *name = xstrdup(tok.text);
     next_token();
     if (!expect(T_LC)) {
       return ast_new(A_STRUCT_DEF);
     }
     next_token();
 
-    AST** methods = xmalloc(sizeof(AST*) * 32);
+    AST **methods = xmalloc(sizeof(AST *) * 32);
     size_t method_count = 0;
 
-    char** fields = xmalloc(sizeof(char*) * 32);
+    char **fields = xmalloc(sizeof(char *) * 32);
     size_t count = 0;
 
     while (tok.type != T_RC && tok.type != T_EOF) {
@@ -2586,12 +2587,12 @@ AST* parse_stmt(void) {
         error_at(tok.loc, "expected field or method name");
         break;
       }
-      char* member_name = xstrdup(tok.text);
+      char *member_name = xstrdup(tok.text);
       next_token();
 
       if (tok.type == T_LP) {
         next_token();
-        char** params = xmalloc(sizeof(char*) * 16);
+        char **params = xmalloc(sizeof(char *) * 16);
         size_t n = 0;
         if (tok.type != T_RP) {
           while (tok.type == T_IDENT) {
@@ -2610,13 +2611,13 @@ AST* parse_stmt(void) {
         }
         next_token();
 
-        AST* body = parse_expr();
-        AST* lambda = ast_new(A_LAMBDA);
+        AST *body = parse_expr();
+        AST *lambda = ast_new(A_LAMBDA);
         lambda->lambda.params = params;
         lambda->lambda.arity = n;
         lambda->lambda.body = body;
 
-        AST* assign = ast_new(A_ASSIGN);
+        AST *assign = ast_new(A_ASSIGN);
         assign->assign.name = member_name;
         assign->assign.value = lambda;
 
@@ -2629,7 +2630,7 @@ AST* parse_stmt(void) {
     expect(T_RC);
     next_token();
 
-    AST* a = ast_new(A_STRUCT_DEF);
+    AST *a = ast_new(A_STRUCT_DEF);
     a->struct_def.name = name;
     a->struct_def.fields = fields;
     a->struct_def.count = count;
@@ -2638,16 +2639,16 @@ AST* parse_stmt(void) {
     return a;
   }
 
-  AST* expr = parse_expr();
+  AST *expr = parse_expr();
   if (tok.type == T_COMMA) {
-    AST** items = xmalloc(sizeof(AST*) * 64);
+    AST **items = xmalloc(sizeof(AST *) * 64);
     size_t count = 0;
     items[count++] = expr;
     while (tok.type == T_COMMA) {
       next_token();
       items[count++] = parse_expr();
     }
-    AST* tuple = ast_new(A_TUPLE);
+    AST *tuple = ast_new(A_TUPLE);
     tuple->list.items = items;
     tuple->list.count = count;
     expr = tuple;
@@ -2656,10 +2657,10 @@ AST* parse_stmt(void) {
   if (tok.type == T_ASSIGN) {
     if (expr->type == A_TUPLE) {
       next_token();
-      AST* rhs = parse_expr();
+      AST *rhs = parse_expr();
 
-      AST* unpack = ast_new(A_ASSIGN_UNPACK);
-      unpack->assign_unpack.names = xmalloc(sizeof(char*) * expr->list.count);
+      AST *unpack = ast_new(A_ASSIGN_UNPACK);
+      unpack->assign_unpack.names = xmalloc(sizeof(char *) * expr->list.count);
       unpack->assign_unpack.count = expr->list.count;
       unpack->assign_unpack.value = rhs;
 
@@ -2673,15 +2674,15 @@ AST* parse_stmt(void) {
       return unpack;
     } else if (expr->type == A_VAR) {
       next_token();
-      AST* rhs = parse_expr();
-      AST* assign = ast_new(A_ASSIGN);
+      AST *rhs = parse_expr();
+      AST *assign = ast_new(A_ASSIGN);
       assign->assign.name = expr->name;
       assign->assign.value = rhs;
       return assign;
     } else if (expr->type == A_MEMBER) {
       next_token();
-      AST* rhs = parse_expr();
-      AST* ma = ast_new(A_MEMBER_ASSIGN);
+      AST *rhs = parse_expr();
+      AST *ma = ast_new(A_MEMBER_ASSIGN);
       ma->member_assign.obj = expr->member.obj;
       ma->member_assign.member = expr->member.member;
       ma->member_assign.value = rhs;
@@ -2722,18 +2723,18 @@ AST* parse_stmt(void) {
     }
 
     next_token();
-    AST* rhs = parse_expr();
+    AST *rhs = parse_expr();
 
-    AST* compound = ast_new(A_COMPOUND_ASSIGN);
+    AST *compound = ast_new(A_COMPOUND_ASSIGN);
     compound->compound_assign.name = expr->name;
     compound->compound_assign.op = op;
 
-    AST* bin = ast_new(A_BINOP);
+    AST *bin = ast_new(A_BINOP);
     bin->bin.op = op;
     bin->bin.l = expr;
     bin->bin.r = rhs;
 
-    AST* assign = ast_new(A_ASSIGN);
+    AST *assign = ast_new(A_ASSIGN);
     assign->assign.name = expr->name;
     assign->assign.value = bin;
 
@@ -2748,7 +2749,7 @@ AST* parse_stmt(void) {
     bool is_incr = (tok.type == T_INCREMENT);
     next_token();
 
-    AST* result = is_incr ? ast_new(A_INCREMENT) : ast_new(A_DECREMENT);
+    AST *result = is_incr ? ast_new(A_INCREMENT) : ast_new(A_DECREMENT);
     if (is_incr) {
       result->increment.name = expr->name;
       result->increment.is_post = true;
@@ -2765,8 +2766,8 @@ AST* parse_stmt(void) {
 void print_value(Value v);
 
 void print_value(Value v) {
-  const char* color = value_type_color(v);
-  const char* reset = use_colors ? COLOR_RESET : "";
+  const char *color = value_type_color(v);
+  const char *reset = use_colors ? COLOR_RESET : "";
 
   if (v.type == VAL_ANY && v.any_val) {
     printf("%s<any:", color);
@@ -2881,7 +2882,7 @@ void print_value(Value v) {
   }
 }
 
-Value read_from_memory(void* address, FFIType type) {
+Value read_from_memory(void *address, FFIType type) {
   if (!address) {
     return v_error("null pointer dereference");
   }
@@ -2890,17 +2891,17 @@ Value read_from_memory(void* address, FFIType type) {
     case FFI_INT:
     case FFI_LONG:
     case FFI_BOOL:
-      return v_int(*(long long*)address);
+      return v_int(*(long long *)address);
 
     case FFI_DOUBLE:
     case FFI_FLOAT:
-      return v_double(*(double*)address);
+      return v_double(*(double *)address);
 
     case FFI_CHAR:
-      return v_char(*(char*)address);
+      return v_char(*(char *)address);
 
     case FFI_STRING: {
-      char** str_ptr = (char**)address;
+      char **str_ptr = (char **)address;
       if (*str_ptr) {
         return v_str(*str_ptr);
       }
@@ -2909,31 +2910,31 @@ Value read_from_memory(void* address, FFIType type) {
 
     case FFI_PTR:
     case FFI_PTR_VOID:
-      return v_ptr(*(void**)address);
+      return v_ptr(*(void **)address);
 
     case FFI_PTR_INT:
-      return v_int(**(long long**)address);
+      return v_int(**(long long **)address);
 
     case FFI_PTR_DOUBLE:
-      return v_double(**(double**)address);
+      return v_double(**(double **)address);
 
     case FFI_PTR_CHAR:
-      return v_char(**(char**)address);
+      return v_char(**(char **)address);
 
     case FFI_PTR_PTR:
-      return v_ptr(**(void***)address);
+      return v_ptr(**(void ***)address);
 
     default: {
-      MemoryBlock* block = find_memory_block(address);
+      MemoryBlock *block = find_memory_block(address);
       if (block) {
         return read_from_memory(address, block->type);
       }
-      return v_int(*(long long*)address);
+      return v_int(*(long long *)address);
     }
   }
 }
 
-Value builtin_store_ptr(Value* args, size_t argc) {
+Value builtin_store_ptr(Value *args, size_t argc) {
   if (argc != 2) {
     return v_error("_store_ptr() takes exactly 2 arguments (ptr, value)");
   }
@@ -2949,7 +2950,7 @@ Value builtin_store_ptr(Value* args, size_t argc) {
     return v_error("cannot store to null pointer");
   }
 
-  MemoryBlock* block = find_memory_block(ptr_val.ptr);
+  MemoryBlock *block = find_memory_block(ptr_val.ptr);
   FFIType ptr_type = block ? block->type : FFI_INT;
 
   store_value_at_address(ptr_val.ptr, value_to_store, ptr_type);
@@ -2957,7 +2958,7 @@ Value builtin_store_ptr(Value* args, size_t argc) {
   return value_to_store;
 }
 
-Value builtin_print(Value* args, size_t argc) {
+Value builtin_print(Value *args, size_t argc) {
   if (argc == 0) {
     printf("\n");
     fflush(stdout);
@@ -2965,11 +2966,11 @@ Value builtin_print(Value* args, size_t argc) {
   }
 
   if (args[0].type == VAL_STRING && argc > 1) {
-    const char* fmt = args[0].s;
+    const char *fmt = args[0].s;
     size_t arg_idx = 1;
 
     size_t placeholder_count = 0;
-    for (const char* p = fmt; *p; p++) {
+    for (const char *p = fmt; *p; p++) {
       if (*p == '%' && *(p + 1) != '%') {
         placeholder_count++;
       } else if (*p == '%' && *(p + 1) == '%') {
@@ -2978,7 +2979,7 @@ Value builtin_print(Value* args, size_t argc) {
     }
 
     if (placeholder_count > 0 && placeholder_count <= argc - 1) {
-      const char* p = fmt;
+      const char *p = fmt;
       while (*p) {
         if (*p == '%' && *(p + 1) == '%') {
           printf("%%");
@@ -3006,7 +3007,7 @@ Value builtin_print(Value* args, size_t argc) {
   return v_null();
 }
 
-Value builtin_type(Value* args, size_t argc) {
+Value builtin_type(Value *args, size_t argc) {
   if (argc != 1) {
     fprintf(stderr, "type() takes exactly 1 argument\n");
     return v_null();
@@ -3014,7 +3015,7 @@ Value builtin_type(Value* args, size_t argc) {
   return v_str(value_type_name(args[0]));
 }
 
-Value builtin_exit(Value* args, size_t argc) {
+Value builtin_exit(Value *args, size_t argc) {
   if (argc > 1) {
     fprintf(stderr, "exit() takes 1 arguments\n");
     return v_int(1);
@@ -3031,7 +3032,7 @@ Value builtin_exit(Value* args, size_t argc) {
   return v_int(0);
 }
 
-Value builtin_assert(Value* args, size_t argc) {
+Value builtin_assert(Value *args, size_t argc) {
   if (argc < 1 || argc > 2) {
     fprintf(stderr, "assert() takes 1 or 2 arguments\n");
     return v_int(1);
@@ -3060,7 +3061,7 @@ Value builtin_assert(Value* args, size_t argc) {
   return v_int(0);
 }
 
-Value builtin_test(Value* args, size_t argc) {
+Value builtin_test(Value *args, size_t argc) {
   if (argc != 2) {
     fprintf(stderr, "test() takes 2 arguments\n");
     return v_bool(false);
@@ -3084,7 +3085,7 @@ Value builtin_test(Value* args, size_t argc) {
   return v_bool(equal);
 }
 
-Value builtin_len(Value* args, size_t argc) {
+Value builtin_len(Value *args, size_t argc) {
   if (argc != 1) return v_null();
   if (args[0].type == VAL_LIST) return v_int(args[0].list->size);
   if (args[0].type == VAL_TUPLE) return v_int(args[0].tuple->size);
@@ -3092,7 +3093,7 @@ Value builtin_len(Value* args, size_t argc) {
   return v_null();
 }
 
-Value builtin_range(Value* args, size_t argc) {
+Value builtin_range(Value *args, size_t argc) {
   if (argc < 1 || argc > 3) return v_null();
   long long start = 0, stop, step = 1;
   if (argc == 1) {
@@ -3121,7 +3122,7 @@ Value builtin_range(Value* args, size_t argc) {
   return result;
 }
 
-Value builtin_int(Value* args, size_t argc) {
+Value builtin_int(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("int() takes exactly 1 argument");
   }
@@ -3144,7 +3145,7 @@ Value builtin_int(Value* args, size_t argc) {
     case VAL_PTR:
       return v_int((long long)arg.ptr);
     case VAL_STRING: {
-      char* endptr;
+      char *endptr;
       long long val = strtoll(arg.s, &endptr, 10);
       if (*endptr != '\0') {
         return v_error("cannot convert string to int: invalid format");
@@ -3156,7 +3157,7 @@ Value builtin_int(Value* args, size_t argc) {
   }
 }
 
-Value builtin_double(Value* args, size_t argc) {
+Value builtin_double(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("double() takes exactly 1 argument");
   }
@@ -3175,7 +3176,7 @@ Value builtin_double(Value* args, size_t argc) {
     case VAL_BOOL:
       return v_double(arg.b ? 1.0 : 0.0);
     case VAL_STRING: {
-      char* endptr;
+      char *endptr;
       double val = strtod(arg.s, &endptr);
       if (*endptr != '\0') {
         return v_error("cannot convert string to double: invalid format");
@@ -3187,7 +3188,7 @@ Value builtin_double(Value* args, size_t argc) {
   }
 }
 
-Value builtin_str(Value* args, size_t argc) {
+Value builtin_str(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("str() takes exactly 1 argument");
   }
@@ -3228,7 +3229,7 @@ Value builtin_str(Value* args, size_t argc) {
   }
 }
 
-Value builtin_bool(Value* args, size_t argc) {
+Value builtin_bool(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("bool() takes exactly 1 argument");
   }
@@ -3236,7 +3237,7 @@ Value builtin_bool(Value* args, size_t argc) {
   return v_bool(value_is_truthy(args[0]));
 }
 
-Value builtin_is_error(Value* args, size_t argc) {
+Value builtin_is_error(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("is_error() takes exactly 1 argument");
   }
@@ -3249,7 +3250,7 @@ Value builtin_is_error(Value* args, size_t argc) {
   return v_bool(arg.type == VAL_ERROR);
 }
 
-Value builtin_is_null(Value* args, size_t argc) {
+Value builtin_is_null(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("is_null() takes exactly 1 argument");
   }
@@ -3263,7 +3264,7 @@ Value builtin_is_null(Value* args, size_t argc) {
                 (arg.type == VAL_PTR && arg.ptr == NULL));
 }
 
-Value builtin_ptr_to_int(Value* args, size_t argc) {
+Value builtin_ptr_to_int(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("ptr_to_int() takes exactly 1 argument");
   }
@@ -3280,7 +3281,7 @@ Value builtin_ptr_to_int(Value* args, size_t argc) {
   return v_error("ptr_to_int() requires a pointer argument");
 }
 
-Value builtin_int_to_ptr(Value* args, size_t argc) {
+Value builtin_int_to_ptr(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("int_to_ptr() takes exactly 1 argument");
   }
@@ -3291,22 +3292,22 @@ Value builtin_int_to_ptr(Value* args, size_t argc) {
   }
 
   if (arg.type == VAL_INT) {
-    return v_ptr((void*)arg.i);
+    return v_ptr((void *)arg.i);
   }
 
   return v_error("int_to_ptr() requires an integer argument");
 }
 
-Value builtin_tuple(Value* args, size_t argc) { return v_tuple(args, argc); }
+Value builtin_tuple(Value *args, size_t argc) { return v_tuple(args, argc); }
 
-Value builtin_any(Value* args, size_t argc) {
+Value builtin_any(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("any() takes exactly 1 argument");
   }
   return v_any(args[0]);
 }
 
-Value builtin_char(Value* args, size_t argc) {
+Value builtin_char(Value *args, size_t argc) {
   if (argc != 1) {
     return v_error("char() takes exactly 1 argument");
   }
@@ -3334,7 +3335,7 @@ Value builtin_char(Value* args, size_t argc) {
   }
 }
 
-Value builtin_help(Value* args, size_t argc) {
+Value builtin_help(Value *args, size_t argc) {
   (void)args;
   (void)argc;
   printf("\n=== Built-in Functions ===\n");
@@ -3392,16 +3393,16 @@ Value builtin_help(Value* args, size_t argc) {
   return v_null();
 }
 
-Value eval(AST* a, Env* env);
+Value eval(AST *a, Env *env);
 
-void load_library(const char* path) {
+void load_library(const char *path) {
   for (size_t i = 0; i < loaded_libs_count; i++) {
     if (!strcmp(loaded_libs[i].name, path)) {
       return;
     }
   }
 
-  void* handle = NULL;
+  void *handle = NULL;
 
 #ifndef _WIN32
   handle = dlopen(path, RTLD_LAZY);
@@ -3410,7 +3411,7 @@ void load_library(const char* path) {
     return;
   }
 #else
-  handle = (void*)LoadLibraryA(path);
+  handle = (void *)LoadLibraryA(path);
   if (!handle) {
     DWORD error = GetLastError();
     fprintf(stderr, "Error loading library '%s': error code %lu\n", path,
@@ -3421,7 +3422,7 @@ void load_library(const char* path) {
 
   if (loaded_libs_count >= loaded_libs_capacity) {
     size_t new_cap = loaded_libs_capacity == 0 ? 4 : loaded_libs_capacity * 2;
-    LoadedLib* new_libs = realloc(loaded_libs, sizeof(LoadedLib) * new_cap);
+    LoadedLib *new_libs = realloc(loaded_libs, sizeof(LoadedLib) * new_cap);
     if (!new_libs) {
 #ifndef _WIN32
       dlclose(handle);
@@ -3439,19 +3440,19 @@ void load_library(const char* path) {
   loaded_libs_count++;
 }
 
-void* find_symbol(const char* name) {
+void *find_symbol(const char *name) {
   for (size_t i = 0; i < loaded_libs_count; i++) {
 #ifndef _WIN32
-    void* sym = dlsym(loaded_libs[i].handle, name);
+    void *sym = dlsym(loaded_libs[i].handle, name);
 #else
-    void* sym = (void*)GetProcAddress((HMODULE)loaded_libs[i].handle, name);
+    void *sym = (void *)GetProcAddress((HMODULE)loaded_libs[i].handle, name);
 #endif
     if (sym) return sym;
   }
   return NULL;
 }
 
-FFIType parse_ffi_type(const char* type_name) {
+FFIType parse_ffi_type(const char *type_name) {
   if (!strcmp(type_name, "int")) return FFI_INT;
   if (!strcmp(type_name, "double")) return FFI_DOUBLE;
   if (!strcmp(type_name, "string")) return FFI_STRING;
@@ -3467,10 +3468,10 @@ FFIType parse_ffi_type(const char* type_name) {
   return FFI_VOID;
 }
 
-void register_extern(const char* aoxim_name, const char* c_name,
-                     FFIType* param_types, size_t param_count,
+void register_extern(const char *aoxim_name, const char *c_name,
+                     FFIType *param_types, size_t param_count,
                      FFIType return_type) {
-  void* func_ptr = find_symbol(c_name);
+  void *func_ptr = find_symbol(c_name);
   if (!func_ptr) {
     fprintf(stderr, "Error: Symbol '%s' not found in loaded libraries\n",
             c_name);
@@ -3479,7 +3480,7 @@ void register_extern(const char* aoxim_name, const char* c_name,
 
   if (extern_funcs_count >= extern_funcs_capacity) {
     size_t new_cap = extern_funcs_capacity == 0 ? 8 : extern_funcs_capacity * 2;
-    ExternFunc* new_funcs = realloc(extern_funcs, sizeof(ExternFunc) * new_cap);
+    ExternFunc *new_funcs = realloc(extern_funcs, sizeof(ExternFunc) * new_cap);
     if (!new_funcs) return;
     extern_funcs = new_funcs;
     extern_funcs_capacity = new_cap;
@@ -3501,7 +3502,7 @@ void register_extern(const char* aoxim_name, const char* c_name,
   extern_funcs[extern_funcs_count].is_variadic = is_variadic;
   extern_funcs_count++;
 
-  Function* ffi_func = xmalloc(sizeof(Function));
+  Function *ffi_func = xmalloc(sizeof(Function));
   ffi_func->is_builtin = false;
   ffi_func->is_variadic = true;
   ffi_func->arity = param_count;
@@ -3512,7 +3513,7 @@ void register_extern(const char* aoxim_name, const char* c_name,
   env_set(global_env, aoxim_name, v_func(ffi_func), false);
 }
 
-ExternFunc* find_extern(const char* name) {
+ExternFunc *find_extern(const char *name) {
   for (size_t i = 0; i < extern_funcs_count; i++) {
     if (!strcmp(extern_funcs[i].name, name)) {
       return &extern_funcs[i];
@@ -3521,14 +3522,14 @@ ExternFunc* find_extern(const char* name) {
   return NULL;
 }
 
-Value call_extern(ExternFunc* ext, Value* args, size_t argc) {
+Value call_extern(ExternFunc *ext, Value *args, size_t argc) {
   if (!ext || !ext->func_ptr) {
     return v_error("extern function not found or not loaded");
   }
 
-  void* func = ext->func_ptr;
+  void *func = ext->func_ptr;
 
-  long long* params = xmalloc(sizeof(long long) * (argc > 32 ? argc : 32));
+  long long *params = xmalloc(sizeof(long long) * (argc > 32 ? argc : 32));
 
   size_t fixed_count =
       ext->is_variadic ? ext->param_count - 1 : ext->param_count;
@@ -3710,9 +3711,9 @@ Value call_extern(ExternFunc* ext, Value* args, size_t argc) {
     }
     case FFI_STRING:
       if (result == 0) return v_null();
-      return v_str((const char*)result);
+      return v_str((const char *)result);
     case FFI_PTR:
-      return v_ptr((void*)result);
+      return v_ptr((void *)result);
     case FFI_VOID:
     case FFI_VARIADIC:
       return v_null();
@@ -3721,20 +3722,20 @@ Value call_extern(ExternFunc* ext, Value* args, size_t argc) {
   return v_null();
 }
 
-Value call_values(Function* fn, Value* vals, size_t argc) {
+Value call_values(Function *fn, Value *vals, size_t argc) {
   if (fn->is_builtin) {
     return fn->builtin(vals, argc);
   }
 
   if (!fn->is_variadic && argc < fn->arity) {
-    Function* nf = xmalloc(sizeof(Function));
+    Function *nf = xmalloc(sizeof(Function));
     *nf = *fn;
     nf->params += argc;
     nf->arity -= argc;
     return v_func(nf);
   }
 
-  Env* local = env_new();
+  Env *local = env_new();
   local->next = fn->closure_env ? fn->closure_env : global_env;
 
   if (fn->is_variadic) {
@@ -3758,16 +3759,16 @@ Value call_values(Function* fn, Value* vals, size_t argc) {
   return result;
 }
 
-Value call(Function* fn, AST** args, size_t argc, Env* caller) {
+Value call(Function *fn, AST **args, size_t argc, Env *caller) {
   if (fn->is_builtin) {
-    Value* vals = xmalloc(sizeof(Value) * argc);
+    Value *vals = xmalloc(sizeof(Value) * argc);
     for (size_t i = 0; i < argc; i++) vals[i] = eval(args[i], caller);
     Value result = fn->builtin(vals, argc);
     return result;
   }
 
   if (!fn->is_variadic && argc < fn->arity) {
-    Function* nf = xmalloc(sizeof(Function));
+    Function *nf = xmalloc(sizeof(Function));
     *nf = *fn;
     nf->params += argc;
     nf->arity -= argc;
@@ -3775,14 +3776,14 @@ Value call(Function* fn, AST** args, size_t argc, Env* caller) {
   }
 
   size_t effective_argc = argc > fn->arity ? argc : fn->arity;
-  Value* vals = xmalloc(sizeof(Value) * effective_argc);
+  Value *vals = xmalloc(sizeof(Value) * effective_argc);
   for (size_t i = 0; i < argc; i++) vals[i] = eval(args[i], caller);
   for (size_t i = argc; i < effective_argc; i++) vals[i] = v_null();
 
   return call_values(fn, vals, effective_argc);
 }
 
-Value call_method(Value obj, const char* method, Value* args, size_t argc) {
+Value call_method(Value obj, const char *method, Value *args, size_t argc) {
   if (obj.type == VAL_ANY && obj.any_val) {
     return call_method(*obj.any_val, method, args, argc);
   }
@@ -3792,7 +3793,7 @@ Value call_method(Value obj, const char* method, Value* args, size_t argc) {
       if (strcmp(method, obj.struct_val->def->fields[i]) == 0) {
         Value val = obj.struct_val->values[i];
         if (val.type == VAL_FUNC) {
-          Value* new_args = xmalloc(sizeof(Value) * (argc + 1));
+          Value *new_args = xmalloc(sizeof(Value) * (argc + 1));
           new_args[0] = obj;
           for (size_t k = 0; k < argc; k++) new_args[k + 1] = args[k];
           Value result = call_values(val.fn, new_args, argc + 1);
@@ -3805,7 +3806,7 @@ Value call_method(Value obj, const char* method, Value* args, size_t argc) {
     for (size_t i = 0; i < obj.struct_val->def->method_count; i++) {
       if (strcmp(method, obj.struct_val->def->method_names[i]) == 0) {
         Value val_fn = v_func(obj.struct_val->def->methods[i]);
-        Value* new_args = xmalloc(sizeof(Value) * (argc + 1));
+        Value *new_args = xmalloc(sizeof(Value) * (argc + 1));
         new_args[0] = obj;
         for (size_t k = 0; k < argc; k++) new_args[k + 1] = args[k];
         Value result = call_values(val_fn.fn, new_args, argc + 1);
@@ -3829,7 +3830,7 @@ Value call_method(Value obj, const char* method, Value* args, size_t argc) {
         bits[i++] = (n & 1) ? '1' : '0';
         n >>= 1;
       }
-      char* p = buf;
+      char *p = buf;
       if (neg) *p++ = '-';
       *p++ = '0';
       *p++ = 'b';
@@ -3844,12 +3845,12 @@ Value call_method(Value obj, const char* method, Value* args, size_t argc) {
   }
   if (obj.type == VAL_STRING) {
     if (!strcmp(method, "upper")) {
-      char* s = xstrdup(obj.s);
-      for (char* p = s; *p; p++) *p = toupper(*p);
+      char *s = xstrdup(obj.s);
+      for (char *p = s; *p; p++) *p = toupper(*p);
       return v_str(s);
     } else if (!strcmp(method, "lower")) {
-      char* s = xstrdup(obj.s);
-      for (char* p = s; *p; p++) *p = tolower(*p);
+      char *s = xstrdup(obj.s);
+      for (char *p = s; *p; p++) *p = tolower(*p);
       return v_str(s);
     }
   }
@@ -3864,7 +3865,7 @@ Value call_method(Value obj, const char* method, Value* args, size_t argc) {
   return v_null();
 }
 
-char* value_to_str(Value v) {
+char *value_to_str(Value v) {
   if (v.type == VAL_ANY && v.any_val) {
     return value_to_str(*v.any_val);
   }
@@ -3901,7 +3902,7 @@ char* value_to_str(Value v) {
   }
 }
 
-Value eval(AST* a, Env* env) {
+Value eval(AST *a, Env *env) {
   switch (a->type) {
     case A_INT:
       return v_int(a->i);
@@ -3926,13 +3927,13 @@ Value eval(AST* a, Env* env) {
           return v_error("dereferencing null pointer");
         }
 
-        Value* val_ptr = (Value*)ptr_val.ptr;
+        Value *val_ptr = (Value *)ptr_val.ptr;
 
         if (val_ptr->type <= VAL_ANY) {
           return *val_ptr;
         }
 
-        MemoryBlock* block = find_memory_block(ptr_val.ptr);
+        MemoryBlock *block = find_memory_block(ptr_val.ptr);
         FFIType ptr_type = block ? block->type : FFI_INT;
 
         return read_from_memory(ptr_val.ptr, ptr_type);
@@ -3940,7 +3941,7 @@ Value eval(AST* a, Env* env) {
     }
 
     case A_ADDROF: {
-      Value* addr = env_get_address(env, a->addrof.var_name);
+      Value *addr = env_get_address(env, a->addrof.var_name);
 
       if (!addr) {
         char err[256];
@@ -3950,7 +3951,7 @@ Value eval(AST* a, Env* env) {
         return v_error(err);
       }
 
-      return v_ptr((void*)addr);
+      return v_ptr((void *)addr);
     }
 
     case A_PTR_LITERAL: {
@@ -3963,7 +3964,7 @@ Value eval(AST* a, Env* env) {
         }
 
         if (v.type == VAL_INT) {
-          return v_ptr((void*)v.i);
+          return v_ptr((void *)v.i);
         } else if (v.type == VAL_PTR) {
           return v;
         } else if (v.type == VAL_NULL) {
@@ -3981,13 +3982,13 @@ Value eval(AST* a, Env* env) {
         total_len += strlen(a->str_interp.parts[i]);
       }
 
-      char** expr_strs = xmalloc(sizeof(char*) * a->str_interp.count);
+      char **expr_strs = xmalloc(sizeof(char *) * a->str_interp.count);
       for (size_t i = 0; i < a->str_interp.count; i++) {
         Value expr_val = eval(a->str_interp.exprs[i], env);
         expr_strs[i] = value_to_str(expr_val);
         total_len += strlen(expr_strs[i]);
       }
-      char* result = xmalloc(total_len + 1);
+      char *result = xmalloc(total_len + 1);
       result[0] = '\0';
 
       for (size_t i = 0; i <= a->str_interp.count; i++) {
@@ -4007,7 +4008,7 @@ Value eval(AST* a, Env* env) {
       return v;
     }
     case A_TUPLE: {
-      Value* items = xmalloc(sizeof(Value) * a->list.count);
+      Value *items = xmalloc(sizeof(Value) * a->list.count);
       for (size_t i = 0; i < a->list.count; i++)
         items[i] = eval(a->list.items[i], env);
       return v_tuple(items, a->list.count);
@@ -4056,7 +4057,7 @@ Value eval(AST* a, Env* env) {
     }
     case A_METHOD: {
       Value obj = eval(a->method.obj, env);
-      Value* args = NULL;
+      Value *args = NULL;
       if (a->method.argc > 0) {
         args = xmalloc(sizeof(Value) * a->method.argc);
         for (size_t i = 0; i < a->method.argc; i++)
@@ -4175,7 +4176,7 @@ Value eval(AST* a, Env* env) {
         }
       }
       if (a->bin.op == '+' && l.type == VAL_STRING && r.type == VAL_STRING) {
-        char* s = xmalloc(strlen(l.s) + strlen(r.s) + 1);
+        char *s = xmalloc(strlen(l.s) + strlen(r.s) + 1);
         strcpy(s, l.s);
         strcat(s, r.s);
         Value v;
@@ -4202,7 +4203,7 @@ Value eval(AST* a, Env* env) {
       Value f = eval(a->call.fn, env);
 
       if (a->call.fn->type == A_VAR) {
-        ExternFunc* ext = find_extern(a->call.fn->name);
+        ExternFunc *ext = find_extern(a->call.fn->name);
         if (ext) {
           if (!ext->is_variadic && a->call.argc != ext->param_count) {
             return v_error("extern function argument count mismatch");
@@ -4210,7 +4211,7 @@ Value eval(AST* a, Env* env) {
           if (ext->is_variadic && a->call.argc < ext->param_count - 1) {
             return v_error("extern function requires at least %zu arguments");
           }
-          Value* vals = xmalloc(sizeof(Value) * a->call.argc);
+          Value *vals = xmalloc(sizeof(Value) * a->call.argc);
           for (size_t i = 0; i < a->call.argc; i++)
             vals[i] = eval(a->call.args[i], env);
           return call_extern(ext, vals, a->call.argc);
@@ -4221,7 +4222,7 @@ Value eval(AST* a, Env* env) {
       return call(f.fn, a->call.args, a->call.argc, env);
     }
     case A_LAMBDA: {
-      Function* f = xmalloc(sizeof(Function));
+      Function *f = xmalloc(sizeof(Function));
       f->params = a->lambda.params;
       f->arity = a->lambda.arity;
       f->body = a->lambda.body;
@@ -4234,6 +4235,7 @@ Value eval(AST* a, Env* env) {
         }
       }
       f->is_variadic = is_variadic;
+      f->closure_env = env;
       return v_func(f);
     }
     case A_ASSIGN: {
@@ -4281,20 +4283,20 @@ Value eval(AST* a, Env* env) {
       }
 
       bool two_vars = false;
-      char* var1 = NULL;
-      char* var2 = NULL;
+      char *var1 = NULL;
+      char *var2 = NULL;
 
       char var_buffer[256];
       strcpy(var_buffer, a->forloop.var);
 
-      char* comma = strchr(var_buffer, ',');
+      char *comma = strchr(var_buffer, ',');
       if (comma) {
         two_vars = true;
         *comma = '\0';
         var1 = var_buffer;
         var2 = comma + 1;
         while (*var2 && isspace(*var2)) var2++;
-        char* end = var1 + strlen(var1) - 1;
+        char *end = var1 + strlen(var1) - 1;
         while (end > var1 && isspace(*end)) *end-- = '\0';
       } else {
         var1 = var_buffer;
@@ -4368,7 +4370,7 @@ Value eval(AST* a, Env* env) {
           }
         }
       } else if (iter_val.type == VAL_STRUCT) {
-        StructDef* def = iter_val.struct_val->def;
+        StructDef *def = iter_val.struct_val->def;
         for (size_t i = 0; i < def->field_count; i++) {
           if (two_vars) {
             env_set(env, var1, v_str(def->fields[i]), false);
@@ -4445,11 +4447,11 @@ Value eval(AST* a, Env* env) {
 
       size_t mcount = a->struct_def.method_count;
       v.struct_def->method_count = mcount;
-      v.struct_def->methods = xmalloc(sizeof(Function*) * mcount);
-      v.struct_def->method_names = xmalloc(sizeof(char*) * mcount);
+      v.struct_def->methods = xmalloc(sizeof(Function *) * mcount);
+      v.struct_def->method_names = xmalloc(sizeof(char *) * mcount);
 
       for (size_t i = 0; i < mcount; i++) {
-        AST* assign = a->struct_def.methods[i];
+        AST *assign = a->struct_def.methods[i];
         if (assign->type == A_ASSIGN) {
           Value val = eval(assign->assign.value, env);
           if (val.type == VAL_FUNC) {
@@ -4469,12 +4471,12 @@ Value eval(AST* a, Env* env) {
       if (def_val.type != VAL_STRUCT_DEF) {
         return v_error("struct not defined");
       }
-      StructDef* def = def_val.struct_def;
-      Value* values = xmalloc(sizeof(Value) * def->field_count);
+      StructDef *def = def_val.struct_def;
+      Value *values = xmalloc(sizeof(Value) * def->field_count);
       for (size_t i = 0; i < def->field_count; i++) values[i] = v_null();
 
       for (size_t i = 0; i < a->struct_init.count; i++) {
-        char* fname = a->struct_init.fields[i];
+        char *fname = a->struct_init.fields[i];
         bool found = false;
         for (size_t j = 0; j < def->field_count; j++) {
           if (strcmp(fname, def->fields[j]) == 0) {
@@ -4511,7 +4513,7 @@ Value eval(AST* a, Env* env) {
       if (val.type == VAL_ERROR) return val;
       Value obj = eval(a->member_assign.obj, env);
       if (obj.type == VAL_STRUCT) {
-        StructDef* def = obj.struct_val->def;
+        StructDef *def = obj.struct_val->def;
         for (size_t i = 0; i < def->field_count; i++) {
           if (strcmp(a->member_assign.member, def->fields[i]) == 0) {
             obj.struct_val->values[i] = val;
@@ -4549,7 +4551,7 @@ Value eval(AST* a, Env* env) {
         return v_error("cannot unpack non-sequence");
       }
       size_t count = (rhs.type == VAL_TUPLE) ? rhs.tuple->size : rhs.list->size;
-      Value* items =
+      Value *items =
           (rhs.type == VAL_TUPLE) ? rhs.tuple->items : rhs.list->items;
 
       if (count != a->assign_unpack.count) {
@@ -4577,8 +4579,8 @@ Value eval(AST* a, Env* env) {
   return v_null();
 }
 
-Function* make_builtin(Value (*fn)(Value*, size_t)) {
-  Function* f = xmalloc(sizeof(Function));
+Function *make_builtin(Value (*fn)(Value *, size_t)) {
+  Function *f = xmalloc(sizeof(Function));
   f->is_builtin = true;
   f->builtin = fn;
   f->arity = 0;
@@ -4587,8 +4589,8 @@ Function* make_builtin(Value (*fn)(Value*, size_t)) {
   return f;
 }
 
-void run_file(const char* filename);
-char* resolve_import_path(const char* import_name, const char* current_file);
+void run_file(const char *filename);
+char *resolve_import_path(const char *import_name, const char *current_file);
 
 void run_repl(void) {
   char line[2048];
@@ -4598,7 +4600,7 @@ void run_repl(void) {
     if (!fgets(line, sizeof(line), stdin)) break;
     size_t len = strlen(line);
     if (len > 0 && line[len - 1] == '\n') line[len - 1] = 0;
-    char* trimmed = line;
+    char *trimmed = line;
     while (*trimmed && isspace(*trimmed)) trimmed++;
     if (strlen(trimmed) == 0 || trimmed[0] == '#') continue;
     if (!strcmp(trimmed, "quit") || !strcmp(trimmed, "exit")) {
@@ -4682,7 +4684,7 @@ void run_repl(void) {
       FFIType param_types[16];
       size_t param_count = 0;
 
-      while (tok.type == T_IDENT && param_count < 16) {
+      while ((tok.type == T_IDENT || tok.type == T_PTR) && param_count < 16) {
         param_types[param_count++] = parse_ffi_type(tok.text);
         next_token();
         if (tok.type == T_COMMA)
@@ -4703,7 +4705,7 @@ void run_repl(void) {
       }
       next_token();
 
-      if (tok.type != T_IDENT) {
+      if (tok.type != T_IDENT && tok.type != T_PTR) {
         error_at(tok.loc, "expected return type");
         continue;
       }
@@ -4727,7 +4729,7 @@ void run_repl(void) {
       next_token();
       if (tok.type == T_LP) {
         next_token();
-        char** params = xmalloc(sizeof(char*) * 16);
+        char **params = xmalloc(sizeof(char *) * 16);
         size_t n = 0;
         while (tok.type == T_IDENT) {
           params[n++] = xstrdup(tok.text);
@@ -4756,9 +4758,9 @@ void run_repl(void) {
           next_token();
           if (tok.type == T_ASSIGN) {
             next_token();
-            AST* body = parse_expr();
+            AST *body = parse_expr();
             if (!errors_occurred) {
-              AST* lambda = ast_new(A_LAMBDA);
+              AST *lambda = ast_new(A_LAMBDA);
               lambda->lambda.params = params;
               bool is_variadic = false;
               for (size_t i = 0; i < n; i++) {
@@ -4781,7 +4783,7 @@ void run_repl(void) {
         next_token();
       } else if (tok.type == T_ASSIGN) {
         next_token();
-        AST* expr = parse_expr();
+        AST *expr = parse_expr();
         if (!errors_occurred) {
           Value v = eval(expr, global_env);
           env_set(global_env, name, v, is_const);
@@ -4793,13 +4795,13 @@ void run_repl(void) {
     src = line;
     current_loc.column = 1;
     next_token();
-    AST* e = parse_stmt();
+    AST *e = parse_stmt();
     if (errors_occurred) continue;
 
     Value v = eval(e, global_env);
 
-    const char* color = value_type_color(v);
-    const char* reset = use_colors ? COLOR_RESET : "";
+    const char *color = value_type_color(v);
+    const char *reset = use_colors ? COLOR_RESET : "";
 
     if (v.type == VAL_INT)
       printf("%s%lld%s\n", color, v.i, reset);
@@ -4824,7 +4826,7 @@ void run_repl(void) {
       printf("%s(%s", color, reset);
       for (size_t i = 0; i < v.tuple->size; i++) {
         if (i > 0) printf(", ");
-        const char* item_color = value_type_color(v.tuple->items[i]);
+        const char *item_color = value_type_color(v.tuple->items[i]);
         if (v.tuple->items[i].type == VAL_INT)
           printf("%s%lld%s", item_color, v.tuple->items[i].i, reset);
         else if (v.tuple->items[i].type == VAL_DOUBLE)
@@ -4839,7 +4841,7 @@ void run_repl(void) {
       printf("%s[%s", color, reset);
       for (size_t i = 0; i < v.list->size; i++) {
         if (i > 0) printf(", ");
-        const char* item_color = value_type_color(v.list->items[i]);
+        const char *item_color = value_type_color(v.list->items[i]);
         if (v.list->items[i].type == VAL_INT)
           printf("%s%lld%s", item_color, v.list->items[i].i, reset);
         else if (v.list->items[i].type == VAL_DOUBLE)
@@ -4860,11 +4862,11 @@ void run_repl(void) {
 #define STR(x) STR1(x)
 #endif
 
-static char* build_and_test(const char* a, const char* b) {
+static char *build_and_test(const char *a, const char *b) {
   size_t la = a ? strlen(a) : 0;
   size_t lb = b ? strlen(b) : 0;
   size_t need = la + (la && lb ? 1 : 0) + lb + 1;
-  char* buf = malloc(need);
+  char *buf = malloc(need);
   if (!buf) return NULL;
   if (la && lb)
     snprintf(buf, need, "%s/%s", a, b);
@@ -4872,7 +4874,7 @@ static char* build_and_test(const char* a, const char* b) {
     snprintf(buf, need, "%s", a);
   else
     snprintf(buf, need, "%s", b ? b : "");
-  FILE* f = fopen(buf, "r");
+  FILE *f = fopen(buf, "r");
   if (f) {
     fclose(f);
     return buf;
@@ -4881,34 +4883,34 @@ static char* build_and_test(const char* a, const char* b) {
   return NULL;
 }
 
-char* force_ext(const char* name) {
-  char* ext = ".calc";
+char *force_ext(const char *name) {
+  char *ext = ".calc";
   if (!name) return NULL;
-  char* buf = malloc(sizeof(*buf) + strlen(name) + strlen(ext));
+  char *buf = malloc(sizeof(*buf) + strlen(name) + strlen(ext));
   if (!buf) return NULL;
   strcpy(buf, name);
   strcat(buf, ".calc");
   return buf;
 }
 
-char* resolve_import_path(const char* import_name, const char* current_file) {
+char *resolve_import_path(const char *import_name, const char *current_file) {
 #ifdef BUILD_DIR
   {
-    const char* build_dir = STR(BUILD_DIR);
+    const char *build_dir = STR(BUILD_DIR);
     if (build_dir && build_dir[0]) {
-      char* p = build_and_test(build_dir, import_name);
+      char *p = build_and_test(build_dir, import_name);
       if (p) return p;
 
       size_t rel_len = strlen("stdlib/") + strlen(import_name) + 1;
-      char* rel = malloc(rel_len);
+      char *rel = malloc(rel_len);
       snprintf(rel, rel_len, "stdlib/%s", import_name);
 
-      char* exet = force_ext(rel);
+      char *exet = force_ext(rel);
       if (!exet) {
-        char* p2 = build_and_test(build_dir, rel);
+        char *p2 = build_and_test(build_dir, rel);
         if (p2) return p2;
       } else {
-        char* p2 = build_and_test(build_dir, exet);
+        char *p2 = build_and_test(build_dir, exet);
         if (p2) return p2;
       }
       free(rel);
@@ -4916,9 +4918,9 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
   }
 #endif
   if (import_name[0] == '/') {
-    char* p = strdup(import_name);
+    char *p = strdup(import_name);
     if (p) {
-      FILE* f = fopen(p, "r");
+      FILE *f = fopen(p, "r");
       if (f) {
         fclose(f);
         return p;
@@ -4928,13 +4930,13 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
   }
 
   if (current_file && strchr(current_file, '/')) {
-    const char* last_slash = strrchr(current_file, '/');
+    const char *last_slash = strrchr(current_file, '/');
     size_t dir_len = (size_t)(last_slash - current_file) + 1;
-    char* dir = malloc(dir_len + 1);
+    char *dir = malloc(dir_len + 1);
     if (dir) {
       strncpy(dir, current_file, dir_len);
       dir[dir_len] = '\0';
-      char* p = build_and_test(dir, import_name);
+      char *p = build_and_test(dir, import_name);
       free(dir);
       if (p) return p;
     }
@@ -4944,23 +4946,23 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
   {
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd))) {
-      char* p = build_and_test(cwd, import_name);
+      char *p = build_and_test(cwd, import_name);
       if (p) return p;
     }
   }
 #else
   {
-    const char* pwd = getenv("PWD");
+    const char *pwd = getenv("PWD");
     if (pwd) {
-      char* p = build_and_test(pwd, import_name);
+      char *p = build_and_test(pwd, import_name);
       if (p) return p;
     }
   }
 #endif
   {
-    char* p = strdup(import_name);
+    char *p = strdup(import_name);
     if (p) {
-      FILE* f = fopen(p, "r");
+      FILE *f = fopen(p, "r");
       if (f) {
         fclose(f);
         return p;
@@ -4971,10 +4973,10 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
 
   {
     size_t rel_len = strlen("stdlib/") + strlen(import_name) + 1;
-    char* rel = malloc(rel_len);
+    char *rel = malloc(rel_len);
     if (rel) {
       snprintf(rel, rel_len, "stdlib/%s", import_name);
-      FILE* f = fopen(rel, "r");
+      FILE *f = fopen(rel, "r");
       if (f) {
         fclose(f);
         return rel;
@@ -4986,8 +4988,8 @@ char* resolve_import_path(const char* import_name, const char* current_file) {
   return NULL;
 }
 
-void run_file(const char* filename) {
-  FILE* f = fopen(filename, "r");
+void run_file(const char *filename) {
+  FILE *f = fopen(filename, "r");
   if (!f) {
     fprintf(stderr, "%s:1:1: error: could not open file\n", filename);
     return;
@@ -4996,7 +4998,7 @@ void run_file(const char* filename) {
   long fsize = ftell(f);
   fseek(f, 0, SEEK_SET);
 
-  char* content = xmalloc(fsize + 1);
+  char *content = xmalloc(fsize + 1);
   size_t bytes_read = fread(content, 1, fsize, f);
   content[bytes_read] = 0;
   fclose(f);
@@ -5096,8 +5098,8 @@ void run_file(const char* filename) {
         continue;
       }
 
-      const char* import_name = tok.text;
-      char* resolved_path =
+      const char *import_name = tok.text;
+      char *resolved_path =
           resolve_import_path(import_name, current_loc.filename);
 
       if (!resolved_path) {
@@ -5114,8 +5116,8 @@ void run_file(const char* filename) {
       mark_file_imported(resolved_path);
       next_token();
 
-      const char* saved_src = src;
-      const char* saved_src_start = src_start;
+      const char *saved_src = src;
+      const char *saved_src_start = src_start;
       Token saved_tok = tok;
       SourceLoc saved_loc = current_loc;
 
@@ -5179,7 +5181,7 @@ void run_file(const char* filename) {
       FFIType param_types[16];
       size_t param_count = 0;
 
-      while (tok.type == T_IDENT && param_count < 16) {
+      while ((tok.type == T_IDENT || tok.type == T_PTR) && param_count < 16) {
         param_types[param_count++] = parse_ffi_type(tok.text);
         next_token();
         if (tok.type == T_COMMA)
@@ -5202,7 +5204,7 @@ void run_file(const char* filename) {
       }
       next_token();
 
-      if (tok.type != T_IDENT) {
+      if (tok.type != T_IDENT && tok.type != T_PTR) {
         error_at(tok.loc, "expected return type");
         next_token();
         continue;
@@ -5221,7 +5223,7 @@ void run_file(const char* filename) {
       next_token();
     }
 
-    AST* stmt = parse_stmt();
+    AST *stmt = parse_stmt();
     if (errors_occurred) {
       errors_occurred = false;
       while (tok.type != T_SEMI && tok.type != T_EOF) {
@@ -5244,7 +5246,7 @@ void run_file(const char* filename) {
         } else {
           size_t count =
               (rhs.type == VAL_TUPLE) ? rhs.tuple->size : rhs.list->size;
-          Value* items =
+          Value *items =
               (rhs.type == VAL_TUPLE) ? rhs.tuple->items : rhs.list->items;
           if (count != stmt->assign_unpack.count) {
             error_at(stmt->loc, "unpacking count mismatch");
@@ -5258,20 +5260,20 @@ void run_file(const char* filename) {
       }
     } else if (stmt->type == A_VAR && tok.type == T_ASSIGN) {
       /* backward-compatible handling (rare, older parsing style) */
-      char* name = stmt->name;
+      char *name = stmt->name;
       next_token();
-      AST* expr = parse_expr();
+      AST *expr = parse_expr();
       if (!errors_occurred) {
         Value v = eval(expr, global_env);
         env_set(global_env, name, v, is_const);
       }
     } else if (stmt->type == A_CALL && stmt->call.fn->type == A_VAR &&
                tok.type == T_ASSIGN) {
-      char* name = stmt->call.fn->name;
-      AST** args = stmt->call.args;
+      char *name = stmt->call.fn->name;
+      AST **args = stmt->call.args;
       size_t argc = stmt->call.argc;
 
-      char** params = xmalloc(sizeof(char*) * argc);
+      char **params = xmalloc(sizeof(char *) * argc);
       bool all_idents = true;
       for (size_t i = 0; i < argc; i++) {
         if (args[i]->type == A_VAR) {
@@ -5285,9 +5287,9 @@ void run_file(const char* filename) {
 
       if (all_idents) {
         next_token();
-        AST* body = parse_expr();
+        AST *body = parse_expr();
         if (!errors_occurred) {
-          AST* lambda = ast_new(A_LAMBDA);
+          AST *lambda = ast_new(A_LAMBDA);
           lambda->lambda.params = params;
           lambda->lambda.arity = argc;
           lambda->lambda.body = body;
@@ -5307,7 +5309,7 @@ void run_file(const char* filename) {
   }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   global_arena = arena_new(65536);
   global_env = env_new();
   init_import_tracker();
