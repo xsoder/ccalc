@@ -1,7 +1,0 @@
-f(x) = x * x
-
-var = f(2)
-
-ptr value = &var
-
-print("{deref value}")

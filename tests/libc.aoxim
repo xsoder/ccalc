@@ -13,12 +13,7 @@ extern fputc = fputc(int, ptr): int
 extern fclose = fclose(ptr): void
 
 generate_ppm(name) = {
-    fptr = fopen(name, "wb")
-
-    if fptr == None: {
-        print("Could not create file")
-        return
-    }
+    fptr = fopen(name, "wb")?
 
     fputs("P6\n", fptr)
     fprintf(fptr, "%d ", WIDTH)
@@ -38,9 +33,9 @@ generate_ppm(name) = {
                 fputc(0, fptr)
                 fputc(0, fptr)
             }
-            col = col + 1
+            col += 1
         }
-        row = row + 1
+        row += 1
     }
 
     fclose(fptr)

@@ -1,26 +1,22 @@
 import "async.aoxim"
-
-print("Test 1: Basic async")
 task1 = async(lambda x: {
-    print("  Computing {x} * 2")
     x * 2
 }, 5)
 
-then(task1, lambda result: {
-    print("  Result: {result}")
-})
 
-run_loop()
-print("")
+task2 = async(lambda x, y: {
+    x * y * 2
+}, 5, 20)
 
-print("Test 2: Multiple tasks")
-task_b = async(lambda x: x * 3, 7)
-task_a = async(lambda x: x + 10, 5)
-task_c = async(lambda x: { x ** 3 }, 40)
+func(z, a) = {
+    z * a
+}
 
-then(task_a, lambda r: print("  Task A: 5 + 10 = {r}"))
-then(task_b, lambda r: print("  Task B: 7 * 3 = {r}"))
-then(task_c, lambda r: print("  Task C: 20 ** 3 = {r}"))
+task3 = async(func, 30, 40)
+
+then(task1, lambda result: {print("T-1: {result}")})
+then(task2, lambda result: {print("T-2: {result}")})
+then(task3, lambda result: {print("T-3: {result}")})
 
 run_loop()
 print("")

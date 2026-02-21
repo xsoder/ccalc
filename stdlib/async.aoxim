@@ -45,11 +45,12 @@ struct Task {
     schedule_time
 }
 
-new_task = lambda func, arg: {
+# args_list is now a list of all arguments
+new_task = lambda func, args_list: {
     Task {
         promise: new_promise(),
         func: func,
-        args_list: [arg],
+        args_list: args_list,
         state: TASK_PENDING,
         dependencies: [],
         delay: 0,
@@ -64,8 +65,9 @@ schedule = lambda task: {
     None
 }
 
-call_task_func = lambda func, arg: {
-    func(arg)
+# Use the built-in apply() to call func with a dynamic arg list
+call_task_func = lambda func, args_list: {
+    apply(func, args_list)
 }
 
 step_loop = lambda: {
@@ -77,8 +79,7 @@ step_loop = lambda: {
             if task.delay > 0: {
                 if event_loop.current_time >= task.schedule_time + task.delay: {
                     task.state = TASK_RUNNING
-                    arg = task.args_list[0]
-                    result = call_task_func(task.func, arg)
+                    result = call_task_func(task.func, task.args_list)
                     task.promise.state = TASK_COMPLETED
                     task.promise.value = result
                     task.state = TASK_COMPLETED
@@ -93,8 +94,7 @@ step_loop = lambda: {
             }
             else: {
                 task.state = TASK_RUNNING
-                arg = task.args_list[0]
-                result = call_task_func(task.func, arg)
+                result = call_task_func(task.func, task.args_list)
                 task.promise.state = TASK_COMPLETED
                 task.promise.value = result
                 task.state = TASK_COMPLETED
@@ -117,8 +117,9 @@ run_loop = lambda: {
     event_loop.running = False
 }
 
-async = lambda func, arg: {
-    task = new_task(func, arg)
+# async is now variadic: async(func, arg1, arg2, ...)
+async = lambda func, $args: {
+    task = new_task(func, $args)
     schedule(task)
     task.promise
 }
@@ -144,7 +145,7 @@ catch = lambda promise, error_handler: {
 }
 
 sleep = lambda n: {
-    task = new_task(lambda arg: None, None)
+    task = new_task(lambda arg: None, [None])
     task.delay = n
     task.schedule_time = event_loop.current_time
     schedule(task)
@@ -235,7 +236,299 @@ timeout = lambda promise, delay: {
                 handler("Timeout")
             }
         }
-    }, None)
+    }, [None])
+    timeout_task.delay = delay
+    timeout_task.schedule_time = event_loop.current_time
+    schedule(timeout_task)
+
+    then(promise, lambda v: {
+        if timed_out == False: {
+            timed_out = True
+            timeout_promise.state = TASK_COMPLETED
+            timeout_promise.value = v
+            for cb: (timeout_promise.callbacks) {
+                cb(v)
+            }
+        }
+    })
+
+    timeout_promise
+}
+
+retry = lambda fn, args, max_attempts: {
+    attempts = 0
+    result_promise = new_promise()
+
+    attempt = lambda: {
+        attempts = attempts + 1
+        p = async(fn, args)
+
+        then(p, lambda v: {
+            result_promise.state = TASK_COMPLETED
+            result_promise.value = v
+            for cb: (result_promise.callbacks) {
+                cb(v)
+            }
+        })
+
+        catch(p, lambda e: {
+            if attempts < max_attempts: {
+                attempt()
+            }
+            else: {
+                result_promise.state = TASK_FAILED
+                result_promise.error = e
+                for handler: (result_promise.error_handlers) {
+                    handler(e)
+                }
+            }
+        })
+    }
+
+    attempt()
+    result_promise
+}
+
+print("Async library loaded!")
+TASK_PENDING = 0
+TASK_RUNNING = 1
+TASK_COMPLETED = 2
+TASK_FAILED = 3
+
+struct Promise {
+    state,
+    value,
+    error,
+    callbacks,
+    error_handlers
+}
+
+struct EventLoop {
+    tasks,
+    running,
+    current_time
+}
+
+new_promise = lambda: {
+    Promise {
+        state: TASK_PENDING,
+        value: None,
+        error: None,
+        callbacks: [],
+        error_handlers: []
+    }
+}
+
+new_event_loop = lambda: {
+    EventLoop {
+        tasks: [],
+        running: False,
+        current_time: 0
+    }
+}
+
+struct Task {
+    promise,
+    func,
+    args_list,
+    state,
+    dependencies,
+    delay,
+    schedule_time
+}
+
+# args_list is now a list of all arguments
+new_task = lambda func, args_list: {
+    Task {
+        promise: new_promise(),
+        func: func,
+        args_list: args_list,
+        state: TASK_PENDING,
+        dependencies: [],
+        delay: 0,
+        schedule_time: 0
+    }
+}
+
+event_loop = new_event_loop()
+
+schedule = lambda task: {
+    event_loop.tasks.append(task)
+    None
+}
+
+# Use the built-in apply() to call func with a dynamic arg list
+call_task_func = lambda func, args_list: {
+    apply(func, args_list)
+}
+
+step_loop = lambda: {
+    if len(event_loop.tasks) == 0: False
+    else: {
+        task = event_loop.tasks.pop(0)
+
+        if task.state == TASK_PENDING: {
+            if task.delay > 0: {
+                if event_loop.current_time >= task.schedule_time + task.delay: {
+                    task.state = TASK_RUNNING
+                    result = call_task_func(task.func, task.args_list)
+                    task.promise.state = TASK_COMPLETED
+                    task.promise.value = result
+                    task.state = TASK_COMPLETED
+
+                    for cb: (task.promise.callbacks) {
+                        cb(result)
+                    }
+                }
+                else: {
+                    event_loop.tasks.append(task)
+                }
+            }
+            else: {
+                task.state = TASK_RUNNING
+                result = call_task_func(task.func, task.args_list)
+                task.promise.state = TASK_COMPLETED
+                task.promise.value = result
+                task.state = TASK_COMPLETED
+                for cb: (task.promise.callbacks) {
+                    cb(result)
+                }
+            }
+        }
+
+        True
+    }
+}
+
+run_loop = lambda: {
+    event_loop.running = True
+    while len(event_loop.tasks) > 0: {
+        step_loop()
+        event_loop.current_time = event_loop.current_time + 1
+    }
+    event_loop.running = False
+}
+
+# async is now variadic: async(func, arg1, arg2, ...)
+async = lambda func, $args: {
+    task = new_task(func, $args)
+    schedule(task)
+    task.promise
+}
+
+then = lambda promise, callback: {
+    if promise.state == TASK_COMPLETED: {
+        callback(promise.value)
+    }
+    else: {
+        promise.callbacks.append(callback)
+    }
+    promise
+}
+
+catch = lambda promise, error_handler: {
+    if promise.state == TASK_FAILED: {
+        error_handler(promise.error)
+    }
+    else: {
+        promise.error_handlers.append(error_handler)
+    }
+    promise
+}
+
+sleep = lambda n: {
+    task = new_task(lambda arg: None, [None])
+    task.delay = n
+    task.schedule_time = event_loop.current_time
+    schedule(task)
+    task.promise
+}
+
+all = lambda promises: {
+    results = []
+    completed = 0
+    total = len(promises)
+
+    result_promise = new_promise()
+
+    check_complete = lambda: {
+        if completed == total: {
+            result_promise.state = TASK_COMPLETED
+            result_promise.value = results
+            for cb: (result_promise.callbacks) {
+                cb(results)
+            }
+        }
+    }
+
+    for i, p: (promises) {
+        idx = i
+        then(p, lambda v: {
+            results.append(v)
+            completed = completed + 1
+            check_complete()
+        })
+    }
+
+    result_promise
+}
+
+race = lambda promises: {
+    result_promise = new_promise()
+    won = False
+
+    for p: (promises) {
+        then(p, lambda v: {
+            if won == False: {
+                won = True
+                result_promise.state = TASK_COMPLETED
+                result_promise.value = v
+                for cb: (result_promise.callbacks) {
+                    cb(v)
+                }
+            }
+        })
+    }
+
+    result_promise
+}
+
+resolve = lambda value: {
+    p = new_promise()
+    p.state = TASK_COMPLETED
+    p.value = value
+    p
+}
+
+reject = lambda error: {
+    p = new_promise()
+    p.state = TASK_FAILED
+    p.error = error
+    p
+}
+
+parallel_map = lambda fn, items: {
+    promises = []
+    for item: (items) {
+        promises.append(async(fn, item))
+    }
+    all(promises)
+}
+
+timeout = lambda promise, delay: {
+    timeout_promise = new_promise()
+    timed_out = False
+
+    timeout_task = new_task(lambda arg: {
+        if timed_out == False: {
+            timed_out = True
+            timeout_promise.state = TASK_FAILED
+            timeout_promise.error = "Timeout"
+            for handler: (timeout_promise.error_handlers) {
+                handler("Timeout")
+            }
+        }
+    }, [None])
     timeout_task.delay = delay
     timeout_task.schedule_time = event_loop.current_time
     schedule(timeout_task)

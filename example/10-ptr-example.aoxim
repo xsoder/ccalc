@@ -3,4 +3,4 @@ ptr p = &value
 
 print("Object p addr: {p}")
 
-print("Object deferecned value: {deref p}")
+print("Object deferecned value: {@p}")
