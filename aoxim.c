@@ -662,7 +662,6 @@ void *allocate_memory(size_t size, FFIType type) {
   if (!ptr)
     return NULL;
 
-  // Track the allocation
   if (memory_blocks_count >= memory_blocks_capacity) {
     size_t new_cap =
         memory_blocks_capacity == 0 ? 16 : memory_blocks_capacity * 2;
@@ -817,7 +816,10 @@ typedef enum {
   T_PTR,
   T_OR,
   T_AND,
-  T_AMPERSAND
+  T_AMPERSAND,
+  T_QUESTION,
+  T_LSHIFT,
+  T_RSHIFT
 } TokType;
 
 typedef struct {
@@ -959,6 +961,12 @@ const char *token_name(TokType t) {
     return "'or'";
   case T_AMPERSAND:
     return "'&'";
+  case T_QUESTION:
+    return "'?'";
+  case T_LSHIFT:
+    return "'<<'";
+  case T_RSHIFT:
+    return "'>>'";
   }
   return "unknown";
 }
@@ -1073,7 +1081,7 @@ void next_token(void) {
   }
 
   if (*src == '0' && (*(src + 1) == 'x' || *(src + 1) == 'X')) {
-    src += 2; // Skip '0x'
+    src += 2;
     current_loc.column += 2;
 
     if (!isxdigit(*src)) {
@@ -1292,6 +1300,20 @@ void next_token(void) {
     strcpy(tok.text, "!=");
     return;
   }
+  if (*src == '<' && *(src + 1) == '<') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_LSHIFT;
+    strcpy(tok.text, "<<");
+    return;
+  }
+  if (*src == '>' && *(src + 1) == '>') {
+    src += 2;
+    current_loc.column += 2;
+    tok.type = T_RSHIFT;
+    strcpy(tok.text, ">>");
+    return;
+  }
   if (*src == '<' && *(src + 1) == '=') {
     src += 2;
     current_loc.column += 2;
@@ -1318,6 +1340,10 @@ void next_token(void) {
   current_loc.column++;
 
   switch (ch) {
+  case '?':
+    tok.type = T_QUESTION;
+    strcpy(tok.text, "?");
+    return;
   case '+':
     tok.type = T_PLUS;
     strcpy(tok.text, "+");
@@ -1441,7 +1467,8 @@ typedef enum {
   A_PTR_LITERAL,
   A_DEREF,
   A_COMPOUND_ASSIGN,
-  A_ADDROF
+  A_ADDROF,
+  A_UNWRAP
 } ASTType;
 
 struct AST {
@@ -1461,6 +1488,7 @@ struct AST {
       AST *fn;
       AST **args;
       size_t argc;
+      bool ptr_return;
     } call;
     struct {
       char **params;
@@ -1470,6 +1498,7 @@ struct AST {
     struct {
       char *name;
       AST *value;
+      bool is_const;
     } assign;
     struct {
       AST *cond;
@@ -1570,6 +1599,9 @@ struct AST {
       char *name;
       bool is_post;
     } decrement;
+    struct {
+      AST *expr;
+    } unwrap;
   };
 };
 
@@ -1596,6 +1628,7 @@ bool expect(TokType expected) {
   }
   return true;
 }
+ExternFunc *find_extern(const char *name);
 
 AST *parse_postfix(void) {
   AST *obj = parse_primary();
@@ -1615,6 +1648,19 @@ AST *parse_postfix(void) {
       }
       expect(T_RP);
       next_token();
+      if (call->call.fn->type == A_VAR) {
+        ExternFunc *ext = find_extern(call->call.fn->name);
+        if (ext && ext->return_type == FFI_PTR) {
+          call->call.ptr_return = true;
+          if (tok.type != T_QUESTION) {
+            error_at(
+                call->loc,
+                "call to '%s' returns ptr and requires '?' unwrap operator",
+                call->call.fn->name);
+          }
+        }
+      }
+
       obj = call;
     } else if (tok.type == T_LB) {
       next_token();
@@ -1682,6 +1728,15 @@ AST *parse_postfix(void) {
       } else {
         error_at(obj->loc, "-- requires variable name");
       }
+    } else if (tok.type == T_QUESTION) {
+      next_token();
+      if (obj->type == A_CALL) {
+        obj->call.ptr_return = true;
+      }
+      AST *u = ast_new(A_UNWRAP);
+      u->loc = obj->loc;
+      u->unwrap.expr = obj;
+      obj = u;
     } else {
       break;
     }
@@ -1999,7 +2054,7 @@ AST *parse_primary(void) {
     }
   }
 
-  if (tok.type == T_AT) {
+  if (tok.type == T_STAR) {
     SourceLoc deref_loc = tok.loc;
     next_token();
     AST *expr = parse_primary();
@@ -2349,8 +2404,23 @@ AST *parse_range(void) {
   return start;
 }
 
-AST *parse_comparison(void) {
+AST *parse_bitshift(void) {
   AST *a = parse_range();
+  while (tok.type == T_LSHIFT || tok.type == T_RSHIFT) {
+    char op = (tok.type == T_LSHIFT) ? 'l' : 'r';
+    next_token();
+    AST *b = parse_range();
+    AST *n = ast_new(A_BINOP);
+    n->bin.op = op;
+    n->bin.l = a;
+    n->bin.r = b;
+    a = n;
+  }
+  return a;
+}
+
+AST *parse_comparison(void) {
+  AST *a = parse_bitshift();
   while (tok.type == T_EQ || tok.type == T_NE || tok.type == T_LT ||
          tok.type == T_GT || tok.type == T_LE || tok.type == T_GE) {
     char op;
@@ -2378,7 +2448,7 @@ AST *parse_comparison(void) {
       break;
     }
     next_token();
-    AST *b = parse_range();
+    AST *b = parse_bitshift();
     AST *n = ast_new(A_BINOP);
     n->bin.op = op;
     n->bin.l = a;
@@ -2549,6 +2619,11 @@ AST *parse_expr(void) {
 }
 
 AST *parse_stmt(void) {
+  bool is_const = false;
+  if (tok.type == T_CONST) {
+    is_const = true;
+    next_token();
+  }
   if (tok.type == T_PTR) {
     next_token();
     if (tok.type != T_IDENT) {
@@ -2693,6 +2768,7 @@ AST *parse_stmt(void) {
       AST *assign = ast_new(A_ASSIGN);
       assign->assign.name = expr->name;
       assign->assign.value = rhs;
+      assign->assign.is_const = is_const;
       return assign;
     } else if (expr->type == A_MEMBER) {
       next_token();
@@ -2821,7 +2897,11 @@ void print_value(Value v) {
     printf("%s<function>%s", color, reset);
     break;
   case VAL_PTR:
-    printf("%s<ptr:%p>%s", color, v.ptr, reset);
+    if (v.ptr == NULL) {
+      printf("%snil%s", color, reset);
+    } else {
+      printf("%s<ptr:%p>%s", color, v.ptr, reset);
+    }
     break;
   case VAL_ANY:
     printf("%s<any:null>%s", color, reset);
@@ -3955,6 +4035,9 @@ char *value_to_str(Value v) {
   case VAL_NULL:
     return xstrdup("None");
   case VAL_PTR:
+    if (v.ptr == NULL) {
+      return xstrdup("nil");
+    }
     snprintf(buf, sizeof(buf), "<ptr:%p>", v.ptr);
     return xstrdup(buf);
   case VAL_CHAR:
@@ -4128,6 +4211,25 @@ Value eval(AST *a, Env *env) {
     }
     return v_error("cannot index non-sequence or with non-integer");
   }
+  case A_UNWRAP: {
+    Value v = eval(a->unwrap.expr, env);
+    if (v.type == VAL_ERROR) {
+      fprintf(stderr, "%s:%d:%d: error: unwrap failed: %s\n", a->loc.filename,
+              a->loc.line, a->loc.column, v.s);
+      exit(1);
+    }
+    if (v.type == VAL_PTR && v.ptr == NULL) {
+      fprintf(stderr, "%s:%d:%d: error: unwrap failed: null pointer\n",
+              a->loc.filename, a->loc.line, a->loc.column);
+      exit(1);
+    }
+    if (v.type == VAL_NULL) {
+      fprintf(stderr, "%s:%d:%d: error: unwrap failed: got null\n",
+              a->loc.filename, a->loc.line, a->loc.column);
+      exit(1);
+    }
+    return v;
+  }
   case A_METHOD: {
     Value obj = eval(a->method.obj, env);
     Value *args = NULL;
@@ -4246,6 +4348,18 @@ Value eval(AST *a, Env *env) {
       if (a->bin.op == '^')
         return v_double(pow(ld, rd));
     }
+    if (a->bin.op == 'l') {
+      if (l.type == VAL_INT && r.type == VAL_INT)
+        return v_int(
+            (long long)((unsigned long long)l.i << (unsigned int)(r.i & 63)));
+      return v_error("'<<' requires integer operands");
+    }
+    if (a->bin.op == 'r') {
+      if (l.type == VAL_INT && r.type == VAL_INT)
+        return v_int(
+            (long long)((unsigned long long)l.i >> (unsigned int)(r.i & 63)));
+      return v_error("'>>' requires integer operands");
+    }
     if (l.type == VAL_INT && r.type == VAL_INT) {
       if (a->bin.op == '+')
         return v_int(l.i + r.i);
@@ -4322,10 +4436,20 @@ Value eval(AST *a, Env *env) {
         return call_extern(ext, vals, a->call.argc);
       }
     }
-
     if (f.type != VAL_FUNC)
       return v_null();
-    return call(f.fn, a->call.args, a->call.argc, env);
+    Value result = call(f.fn, a->call.args, a->call.argc, env);
+
+    if (result.type == VAL_PTR && !a->call.ptr_return) {
+      const char *fn_name =
+          (a->call.fn->type == A_VAR) ? a->call.fn->name : "<anonymous>";
+      error_at(a->loc,
+               "call to '%s' returns ptr and requires '?' unwrap operator",
+               fn_name);
+      exit(1);
+    }
+
+    return result;
   }
   case A_LAMBDA: {
     Function *f = xmalloc(sizeof(Function));
@@ -4346,7 +4470,7 @@ Value eval(AST *a, Env *env) {
   }
   case A_ASSIGN: {
     Value v = eval(a->assign.value, env);
-    env_set(env, a->assign.name, v, false);
+    env_set(env, a->assign.name, v, a->assign.is_const);
     return v;
   }
   case A_IF: {
@@ -5209,7 +5333,7 @@ void run_file(const char *filename) {
           }
           continue;
         } else {
-          error_at(tok.loc, "unknown decorator '@%s'", decorator); // TODO
+          error_at(tok.loc, "unknown decorator '@%s'", decorator);
           next_token();
           continue;
         }

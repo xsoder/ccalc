@@ -1,4 +1,5 @@
 import "async.aoxim"
+
 task1 = async(lambda x: {
     x * 2
 }, 5)
@@ -8,15 +9,15 @@ task2 = async(lambda x, y: {
     x * y * 2
 }, 5, 20)
 
+
 func(z, a) = {
     z * a
 }
+task3 = async(func, 50, 40)
 
-task3 = async(func, 30, 40)
-
-then(task1, lambda result: {print("T-1: {result}")})
-then(task2, lambda result: {print("T-2: {result}")})
-then(task3, lambda result: {print("T-3: {result}")})
+then(task1, lambda run: {print("Task-1: {run}")})
+then(task2, lambda run: {print("Task-2: {run}")})
+then(task3, lambda run: {print("Task-3: {run}")})
 
 run_loop()
 print("")
