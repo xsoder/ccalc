@@ -1,0 +1,3 @@
+fptr = fopen("1", "wb")?
+
+Make pointer that are made from functions not the keyword pointer require ?.
