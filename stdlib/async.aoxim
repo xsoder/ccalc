@@ -72,7 +72,7 @@ step_loop = lambda: {
     if len(event_loop.tasks) == 0: False
     else: {
         task = event_loop.tasks.pop(0)
-        
+
         if task.state == TASK_PENDING: {
             if task.delay > 0: {
                 if event_loop.current_time >= task.schedule_time + task.delay: {
@@ -82,7 +82,7 @@ step_loop = lambda: {
                     task.promise.state = TASK_COMPLETED
                     task.promise.value = result
                     task.state = TASK_COMPLETED
-                    
+
                     for cb: (task.promise.callbacks) {
                         cb(result)
                     }
@@ -103,7 +103,7 @@ step_loop = lambda: {
                 }
             }
         }
-        
+
         True
     }
 }
@@ -155,9 +155,9 @@ all = lambda promises: {
     results = []
     completed = 0
     total = len(promises)
-    
+
     result_promise = new_promise()
-    
+
     check_complete = lambda: {
         if completed == total: {
             result_promise.state = TASK_COMPLETED
@@ -167,7 +167,7 @@ all = lambda promises: {
             }
         }
     }
-    
+
     for i, p: (promises) {
         idx = i
         then(p, lambda v: {
@@ -176,14 +176,14 @@ all = lambda promises: {
             check_complete()
         })
     }
-    
+
     result_promise
 }
 
 race = lambda promises: {
     result_promise = new_promise()
     won = False
-    
+
     for p: (promises) {
         then(p, lambda v: {
             if won == False: {
@@ -196,7 +196,7 @@ race = lambda promises: {
             }
         })
     }
-    
+
     result_promise
 }
 
@@ -225,7 +225,7 @@ parallel_map = lambda fn, items: {
 timeout = lambda promise, delay: {
     timeout_promise = new_promise()
     timed_out = False
-    
+
     timeout_task = new_task(lambda arg: {
         if timed_out == False: {
             timed_out = True
@@ -239,7 +239,7 @@ timeout = lambda promise, delay: {
     timeout_task.delay = delay
     timeout_task.schedule_time = event_loop.current_time
     schedule(timeout_task)
-    
+
     then(promise, lambda v: {
         if timed_out == False: {
             timed_out = True
@@ -250,18 +250,18 @@ timeout = lambda promise, delay: {
             }
         }
     })
-    
+
     timeout_promise
 }
 
 retry = lambda fn, args, max_attempts: {
     attempts = 0
     result_promise = new_promise()
-    
+
     attempt = lambda: {
         attempts = attempts + 1
         p = async(fn, args)
-        
+
         then(p, lambda v: {
             result_promise.state = TASK_COMPLETED
             result_promise.value = v
@@ -269,7 +269,7 @@ retry = lambda fn, args, max_attempts: {
                 cb(v)
             }
         })
-        
+
         catch(p, lambda e: {
             if attempts < max_attempts: {
                 attempt()
@@ -283,7 +283,7 @@ retry = lambda fn, args, max_attempts: {
             }
         })
     }
-    
+
     attempt()
     result_promise
 }

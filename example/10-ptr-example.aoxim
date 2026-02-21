@@ -1,7 +1,6 @@
-value = 20
+const value = 20
 ptr p = &value
 
-print(p)
+print("Object p addr: {p}")
 
-x = defer p
-print(x)
+print("Object deferecned value: {deref p}")

@@ -1,4 +1,4 @@
-import "stdlib/async.aoxim"
+import "async.aoxim"
 
 print("Test 1: Basic async")
 task1 = async(lambda x: {

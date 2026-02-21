@@ -6,7 +6,7 @@ task_b = async (lambda y: {
 
 task_c = async (lambda y, z: {
     return y + z
-}, 20, 10)
+}, 30, 10)
 
 then(task_c, lambda v: { print(v) })
 then(task_b, lambda v: { print(v) })

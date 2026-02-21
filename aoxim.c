@@ -805,7 +805,7 @@ typedef enum {
   T_PTR,
   T_OR,
   T_AND,
-  T_DEFER,
+  T_DEREF,
   T_AMPERSAND
 } TokType;
 
@@ -946,8 +946,8 @@ const char *token_name(TokType t) {
       return "'and'";
     case T_OR:
       return "'or'";
-    case T_DEFER:
-      return "'defer'";
+    case T_DEREF:
+      return "'deref'";
     case T_AMPERSAND:
       return "'&'";
   }
@@ -1213,11 +1213,11 @@ void next_token(void) {
     return;
   }
 
-  if (!strncmp(src, "defer", 5) && !is_ident(*(src + 5))) {
+  if (!strncmp(src, "deref", 5) && !is_ident(*(src + 5))) {
     src += 5;
     current_loc.column += 5;
-    tok.type = T_DEFER;
-    strcpy(tok.text, "defer");
+    tok.type = T_DEREF;
+    strcpy(tok.text, "deref");
     return;
   }
 
@@ -1435,7 +1435,7 @@ typedef enum {
   A_DECREMENT,
   A_CHAR,
   A_PTR_LITERAL,
-  A_DEFER,
+  A_DEREF,
   A_COMPOUND_ASSIGN,
   A_ADDROF
 } ASTType;
@@ -1990,13 +1990,13 @@ AST *parse_primary(void) {
     }
   }
 
-  if (tok.type == T_DEFER) {
-    SourceLoc defer_loc = tok.loc;
+  if (tok.type == T_DEREF) {
+    SourceLoc deref_loc = tok.loc;
     next_token();
     AST *expr = parse_primary();
 
-    AST *deref = ast_new(A_DEFER);
-    deref->loc = defer_loc;
+    AST *deref = ast_new(A_DEREF);
+    deref->loc = deref_loc;
     deref->deref.ptr_expr = expr;
     return deref;
   }
@@ -3917,7 +3917,7 @@ Value eval(AST *a, Env *env) {
     case A_CHAR:
       return v_char(a->c);
 
-    case A_DEFER: {
+    case A_DEREF: {
       Value ptr_val = eval(a->deref.ptr_expr, env);
 
       if (ptr_val.type == VAL_ERROR) return ptr_val;

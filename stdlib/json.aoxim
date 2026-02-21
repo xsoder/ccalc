@@ -98,7 +98,6 @@ struct JObject {
 
     StructAsJson(self, p) = {
         for i, j: (p) {
-          print(i, j)
             if type(j) == "int": {self.JsonAddInteger(i, j)}
             if type(j) == "string": {self.JsonAddString(i, j)}
             if type(j) == "bool": {self.JsonAddBoolean(i, j)}

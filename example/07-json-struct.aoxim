@@ -1,9 +1,12 @@
-obj = JObject{}
+import "json.aoxim"
+
+obj = JObject {}
 
 struct Person {
     married,
     name,
     age,
+    obj2,
 }
 
 p = Person {
@@ -11,6 +14,7 @@ p = Person {
   name: 63,
   age: [10, 20, 30],
 }
+
 obj.JsonObjBegin()
 obj.StructAsJson(p)
 obj.JsonObjEnd()

@@ -26,4 +26,3 @@ obj.JsonAddObject("NewObject2", new)
 obj.JsonObjEnd()
 
 print("%", obj.content)
-#obj.WriteToFile("main.json")
