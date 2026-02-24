@@ -1,10 +1,13 @@
+import "iterator.aoxim"
+
 arr =  [10, 20, 30, 40, "Urmom", "20", 22]
 it = Iterator { arr: arr }
 it.init()
 
 name = ""
-while it.has_next(): {
+while it.has_next() {
     val = it.next()
-    name = name + "{val} "
+    name +=  "{val} "
+    print(it.peek())
 }
 print(name)

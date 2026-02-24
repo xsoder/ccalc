@@ -26,7 +26,7 @@ struct JObject {
         self._add_comma_if_needed()
         field = stringiy(field)
         value = stringiy(value)
-        self.content = self.content + field + ":" +value
+        self.content = self.content + field + ":" + value
         self.content_amt = self.content_amt + 1
     }
 
@@ -103,6 +103,9 @@ struct JObject {
             if type(j) == "bool": {self.JsonAddBoolean(i, j)}
             if type(j) == None: {self.JsonAddNull(i, j)}
             if type(j) == "list": {self.JsonAddArray(i, j)}
+            if type(j) == "struct" and j.content != None: {
+               self.JsonAddObject(i, j)
+            }
         }
     }
 }

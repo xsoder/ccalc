@@ -23,7 +23,7 @@ struct File {
 
     # No default param working
     open(self) = {
-        self.fptr = fopen(self.path, self.perm)
+        self.fptr = fopen(self.path, self.perm)?
         fputs(self.str, self.fptr)
     }
 

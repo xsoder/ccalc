@@ -357,6 +357,7 @@ Value v_error(const char *msg) {
 }
 
 Value v_ptr_with_type(void *p, FFIType ptr_type) {
+  (void)ptr_type;
   Value v;
   memset(&v, 0, sizeof(v));
   v.type = VAL_PTR;
@@ -4266,30 +4267,188 @@ Value eval(AST *a, Env *env) {
     }
 
     if (a->bin.op == 'E') {
-      if (l.type == VAL_INT && r.type == VAL_INT)
+      if (l.type != r.type)
+        return v_bool(false);
+
+      switch (l.type) {
+      case VAL_INT:
         return v_bool(l.i == r.i);
-      if (l.type == VAL_BOOL && r.type == VAL_BOOL)
+      case VAL_DOUBLE:
+        return v_bool(l.d == r.d);
+      case VAL_BOOL:
         return v_bool(l.b == r.b);
-      if (l.type == VAL_CHAR && r.type == VAL_CHAR)
+      case VAL_CHAR:
         return v_bool(l.c == r.c);
-      if (l.type == VAL_PTR && r.type == VAL_PTR)
-        return v_bool(l.ptr == r.ptr);
-      if (l.type == VAL_STRING && r.type == VAL_STRING)
+      case VAL_STRING:
         return v_bool(strcmp(l.s, r.s) == 0);
-      return v_bool(false);
+      case VAL_PTR:
+        return v_bool(l.ptr == r.ptr);
+      case VAL_NULL:
+        return v_bool(true);
+      case VAL_FUNC:
+        return v_bool(l.fn == r.fn);
+      case VAL_LIST:
+        if (l.list->size != r.list->size)
+          return v_bool(false);
+        for (size_t i = 0; i < l.list->size; i++) {
+          Value li = l.list->items[i];
+          Value ri = r.list->items[i];
+          if (li.type != ri.type)
+            return v_bool(false);
+          switch (li.type) {
+          case VAL_INT:
+            if (li.i != ri.i)
+              return v_bool(false);
+            break;
+          case VAL_DOUBLE:
+            if (li.d != ri.d)
+              return v_bool(false);
+            break;
+          case VAL_BOOL:
+            if (li.b != ri.b)
+              return v_bool(false);
+            break;
+          case VAL_CHAR:
+            if (li.c != ri.c)
+              return v_bool(false);
+            break;
+          case VAL_STRING:
+            if (strcmp(li.s, ri.s) != 0)
+              return v_bool(false);
+            break;
+          case VAL_PTR:
+            if (li.ptr != ri.ptr)
+              return v_bool(false);
+            break;
+          case VAL_NULL:
+            break;
+          default:
+            return v_bool(false);
+          }
+        }
+        return v_bool(true);
+
+      case VAL_TUPLE:
+        if (l.tuple->size != r.tuple->size)
+          return v_bool(false);
+        for (size_t i = 0; i < l.tuple->size; i++) {
+          if (!values_equal(l.tuple->items[i], r.tuple->items[i])) {
+            return v_bool(false);
+          }
+        }
+        return v_bool(true);
+
+      case VAL_STRUCT:
+        if (l.struct_val->def != r.struct_val->def)
+          return v_bool(false);
+        for (size_t i = 0; i < l.struct_val->def->field_count; i++) {
+          if (!values_equal(l.struct_val->values[i], r.struct_val->values[i])) {
+            return v_bool(false);
+          }
+        }
+        return v_bool(true);
+
+      case VAL_STRUCT_DEF:
+        return v_bool(l.struct_def == r.struct_def);
+
+      case VAL_ERROR:
+        return v_bool(strcmp(l.s, r.s) == 0);
+
+      default:
+        return v_bool(false);
+      }
     }
     if (a->bin.op == 'N') {
-      if (l.type == VAL_INT && r.type == VAL_INT)
+      if (l.type != r.type)
+        return v_bool(true);
+
+      switch (l.type) {
+      case VAL_INT:
         return v_bool(l.i != r.i);
-      if (l.type == VAL_BOOL && r.type == VAL_BOOL)
+      case VAL_DOUBLE:
+        return v_bool(l.d != r.d);
+      case VAL_BOOL:
         return v_bool(l.b != r.b);
-      if (l.type == VAL_CHAR && r.type == VAL_CHAR)
+      case VAL_CHAR:
         return v_bool(l.c != r.c);
-      if (l.type == VAL_PTR && r.type == VAL_PTR)
-        return v_bool(l.ptr != r.ptr);
-      if (l.type == VAL_STRING && r.type == VAL_STRING)
+      case VAL_STRING:
         return v_bool(strcmp(l.s, r.s) != 0);
-      return v_bool(true);
+      case VAL_PTR:
+        return v_bool(l.ptr != r.ptr);
+      case VAL_NULL:
+        return v_bool(false);
+      case VAL_FUNC:
+        return v_bool(l.fn != r.fn);
+      case VAL_LIST:
+        if (l.list->size != r.list->size)
+          return v_bool(true);
+        for (size_t i = 0; i < l.list->size; i++) {
+          Value li = l.list->items[i];
+          Value ri = r.list->items[i];
+          if (li.type != ri.type)
+            return v_bool(true);
+          switch (li.type) {
+          case VAL_INT:
+            if (li.i != ri.i)
+              return v_bool(true);
+            break;
+          case VAL_DOUBLE:
+            if (li.d != ri.d)
+              return v_bool(true);
+            break;
+          case VAL_BOOL:
+            if (li.b != ri.b)
+              return v_bool(true);
+            break;
+          case VAL_CHAR:
+            if (li.c != ri.c)
+              return v_bool(true);
+            break;
+          case VAL_STRING:
+            if (strcmp(li.s, ri.s) != 0)
+              return v_bool(true);
+            break;
+          case VAL_PTR:
+            if (li.ptr != ri.ptr)
+              return v_bool(true);
+            break;
+          case VAL_NULL:
+            break;
+          default:
+            return v_bool(true);
+          }
+        }
+        return v_bool(false);
+
+      case VAL_TUPLE:
+        if (l.tuple->size != r.tuple->size)
+          return v_bool(true);
+        for (size_t i = 0; i < l.tuple->size; i++) {
+          if (!values_equal(l.tuple->items[i], r.tuple->items[i])) {
+            return v_bool(true);
+          }
+        }
+        return v_bool(false);
+
+      case VAL_STRUCT:
+        if (l.struct_val->def != r.struct_val->def)
+          return v_bool(true);
+        for (size_t i = 0; i < l.struct_val->def->field_count; i++) {
+          if (!values_equal(l.struct_val->values[i], r.struct_val->values[i])) {
+            return v_bool(true);
+          }
+        }
+        return v_bool(false);
+
+      case VAL_STRUCT_DEF:
+        return v_bool(l.struct_def != r.struct_def);
+
+      case VAL_ERROR:
+        return v_bool(strcmp(l.s, r.s) != 0);
+
+      default:
+        return v_bool(true);
+      }
     }
     if (a->bin.op == '<') {
       if (l.type == VAL_INT && r.type == VAL_INT)
