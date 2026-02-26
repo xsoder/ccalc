@@ -1,0 +1,11 @@
+@os "win32" {
+    link "C:/Windows/System32/msvcrt.dll"
+    link "C:/Windows/System32/user32.dll"
+}
+
+extern malloc = malloc(int): Option<ptr>
+extern msize  = _msize(ptr): int
+
+x = malloc(256)?
+print(x)
+print(msize(x))

@@ -197,7 +197,8 @@ typedef enum {
   FFI_PTR_DOUBLE,
   FFI_PTR_CHAR,
   FFI_PTR_VOID,
-  FFI_PTR_PTR
+  FFI_PTR_PTR,
+  FFI_OPTION_PTR
 } FFIType;
 
 typedef struct {
@@ -756,6 +757,7 @@ void store_value_at_address(void *address, Value v, FFIType type) {
 
 typedef enum {
   T_INT,
+
   T_DOUBLE,
   T_STRING,
   T_IDENT,
@@ -820,7 +822,8 @@ typedef enum {
   T_AMPERSAND,
   T_QUESTION,
   T_LSHIFT,
-  T_RSHIFT
+  T_RSHIFT,
+  T_OPTION_PTR
 } TokType;
 
 typedef struct {
@@ -968,6 +971,8 @@ const char *token_name(TokType t) {
     return "'<<'";
   case T_RSHIFT:
     return "'>>'";
+  case T_OPTION_PTR:
+    return "Option<ptr>"; // @Mr-German suggestion which was so peak.
   }
   return "unknown";
 }
@@ -1001,7 +1006,6 @@ void next_token(void) {
     strcpy(tok.text, "");
     return;
   }
-
   if (*src == '+' && *(src + 1) == '+') {
     src += 2;
     current_loc.column += 2;
@@ -1282,7 +1286,18 @@ void next_token(void) {
       tok.type = T_OR;
     else if (!strcmp(tok.text, "and"))
       tok.type = T_AND;
-    else
+    else if (!strcmp(tok.text, "Option")) {
+      if (src[0] == '<' && src[1] == 'p' && src[2] == 't' && src[3] == 'r' &&
+          src[4] == '>') {
+        src += 5;
+        current_loc.column += 5;
+        tok.type = T_OPTION_PTR;
+        strcpy(tok.text, "Option<ptr>");
+      } else {
+        error_at(tok.loc, "expected '<ptr>' after 'Option', got bare 'Option'");
+        tok.type = T_ERROR;
+      }
+    } else
       tok.type = T_IDENT;
     return;
   }
@@ -1651,13 +1666,13 @@ AST *parse_postfix(void) {
       next_token();
       if (call->call.fn->type == A_VAR) {
         ExternFunc *ext = find_extern(call->call.fn->name);
-        if (ext && ext->return_type == FFI_PTR) {
+        if (ext && ext->return_type == FFI_OPTION_PTR) {
           call->call.ptr_return = true;
           if (tok.type != T_QUESTION) {
-            error_at(
-                call->loc,
-                "call to '%s' returns ptr and requires '?' unwrap operator",
-                call->call.fn->name);
+            error_at(call->loc,
+                     "call to '%s' returns Option<ptr> and requires '?' unwrap "
+                     "operator",
+                     call->call.fn->name);
           }
         }
       }
@@ -3852,7 +3867,7 @@ Value call_extern(ExternFunc *ext, Value *args, size_t argc) {
     if (result == 0)
       return v_null();
     return v_str((const char *)result);
-  case FFI_PTR:
+  case FFI_OPTION_PTR:
     return v_ptr((void *)result);
   case FFI_VOID:
   case FFI_VARIADIC:
@@ -4599,15 +4614,6 @@ Value eval(AST *a, Env *env) {
       return v_null();
     Value result = call(f.fn, a->call.args, a->call.argc, env);
 
-    if (result.type == VAL_PTR && !a->call.ptr_return) {
-      const char *fn_name =
-          (a->call.fn->type == A_VAR) ? a->call.fn->name : "<anonymous>";
-      error_at(a->loc,
-               "call to '%s' returns ptr and requires '?' unwrap operator",
-               fn_name);
-      exit(1);
-    }
-
     return result;
   }
   case A_LAMBDA: {
@@ -5101,16 +5107,17 @@ void run_repl(void) {
       }
       next_token();
 
-      if (tok.type != T_IDENT && tok.type != T_PTR) {
+      FFIType return_type;
+      if (tok.type == T_OPTION_PTR) {
+        return_type = FFI_OPTION_PTR;
+        next_token();
+      } else if (tok.type == T_IDENT || tok.type == T_PTR) {
+        return_type = parse_ffi_type(tok.text);
+        next_token();
+      } else {
         error_at(tok.loc, "expected return type");
         continue;
       }
-      FFIType return_type = parse_ffi_type(tok.text);
-      next_token();
-
-      register_extern(aoxim_name, c_name, param_types, param_count,
-                      return_type);
-      continue;
     }
 
     bool is_const = false;
@@ -5599,7 +5606,6 @@ void run_file(const char *filename) {
 
       FFIType param_types[16];
       size_t param_count = 0;
-
       while ((tok.type == T_IDENT || tok.type == T_PTR) && param_count < 16) {
         param_types[param_count++] = parse_ffi_type(tok.text);
         next_token();
@@ -5623,13 +5629,18 @@ void run_file(const char *filename) {
       }
       next_token();
 
-      if (tok.type != T_IDENT && tok.type != T_PTR) {
+      FFIType return_type;
+      if (tok.type == T_OPTION_PTR) {
+        return_type = FFI_OPTION_PTR;
+        next_token();
+      } else if (tok.type == T_IDENT || tok.type == T_PTR) {
+        return_type = parse_ffi_type(tok.text);
+        next_token();
+      } else {
         error_at(tok.loc, "expected return type");
         next_token();
         continue;
       }
-      FFIType return_type = parse_ffi_type(tok.text);
-      next_token();
 
       register_extern(aoxim_name, c_name, param_types, param_count,
                       return_type);
