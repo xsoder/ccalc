@@ -1482,6 +1482,7 @@ typedef enum {
   A_CHAR,
   A_PTR_LITERAL,
   A_DEREF,
+  A_SLICE,
   A_COMPOUND_ASSIGN,
   A_ADDROF,
   A_UNWRAP
@@ -1605,6 +1606,11 @@ struct AST {
       AST *ptr_expr;
     } deref;
     struct {
+      AST *obj;
+      AST *begin;
+      AST *end;
+    } slice;
+    struct {
       char *var_name;
     } addrof;
     struct {
@@ -1680,13 +1686,40 @@ AST *parse_postfix(void) {
       obj = call;
     } else if (tok.type == T_LB) {
       next_token();
-      AST *idx = parse_expr();
+      AST *slice_start = NULL;
+      AST *slice_end = NULL;
+      bool is_slice = false;
+
+      if (tok.type == T_COLON) {
+        is_slice = true;
+        next_token();
+        if (tok.type != T_RB)
+          slice_end = parse_expr();
+      } else {
+        slice_start = parse_expr();
+        if (tok.type == T_COLON) {
+          is_slice = true;
+          next_token();
+          if (tok.type != T_RB)
+            slice_end = parse_expr();
+        }
+      }
+
       expect(T_RB);
       next_token();
-      AST *c = ast_new(A_INDEX);
-      c->index.obj = obj;
-      c->index.idx = idx;
-      obj = c;
+
+      if (is_slice) {
+        AST *c = ast_new(A_SLICE);
+        c->slice.obj = obj;
+        c->slice.begin = slice_start;
+        c->slice.end = slice_end;
+        obj = c;
+      } else {
+        AST *c = ast_new(A_INDEX);
+        c->index.obj = obj;
+        c->index.idx = slice_start;
+        obj = c;
+      }
     } else if (tok.type == T_DOT) {
       next_token();
       if (!expect(T_IDENT)) {
@@ -4970,6 +5003,61 @@ Value eval(AST *a, Env *env) {
       }
     }
     return v_null();
+  }
+  case A_SLICE: {
+    Value obj = eval(a->slice.obj, env);
+    if (obj.type == VAL_ERROR)
+      return obj;
+    if (obj.type == VAL_ANY && obj.any_val)
+      obj = *obj.any_val;
+
+    size_t obj_len = 0;
+    if (obj.type == VAL_LIST)
+      obj_len = obj.list->size;
+    else if (obj.type == VAL_STRING)
+      obj_len = strlen(obj.s);
+    else
+      return v_error("slice requires a list or string");
+
+    long long s = 0;
+    long long e = (long long)obj_len;
+
+    if (a->slice.begin) {
+      Value sv = eval(a->slice.begin, env);
+      if (sv.type != VAL_INT)
+        return v_error("slice index must be an integer");
+      s = sv.i;
+    }
+    if (a->slice.end) {
+      Value ev = eval(a->slice.end, env);
+      if (ev.type != VAL_INT)
+        return v_error("slice index must be an integer");
+      e = ev.i;
+    }
+
+    if (s < 0)
+      s = 0;
+    if (e > (long long)obj_len)
+      e = (long long)obj_len;
+
+    if (obj.type == VAL_LIST) {
+      Value result = v_list();
+      for (long long i = s; i < e; i++)
+        list_append(result.list, obj.list->items[i]);
+      return result;
+    } else {
+      if (s >= e)
+        return v_str("");
+      size_t len = (size_t)(e - s);
+      char *buf = xmalloc(len + 1);
+      memcpy(buf, obj.s + s, len);
+      buf[len] = '\0';
+      Value r;
+      memset(&r, 0, sizeof(r));
+      r.type = VAL_STRING;
+      r.s = buf;
+      return r;
+    }
   }
   case A_COMPOUND_ASSIGN:
     return v_error("compound assign not implemented in eval");
